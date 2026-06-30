@@ -8,6 +8,7 @@
 from abc import ABC, abstractmethod
 
 from core.infrastructure.protocols import ILibraryGateway
+from core.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
 
@@ -53,7 +54,7 @@ class ISeatSelectionStrategy(ABC):
     @abstractmethod
     def select_seat(
         self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
-    ) -> dict[str, object] | None:
+    ) -> Result[SeatPoi, str]:
         """从楼层中选出目标座位 POI 对象。
 
         Args:
@@ -62,7 +63,7 @@ class ISeatSelectionStrategy(ABC):
             **kwargs: 额外参数（如随机种子、用户偏好等）。
 
         Returns:
-            选中的座位 POI 对象，None 表示无法选出。
+            成功时包含座位 POI；失败时包含原因描述字符串。
         """
         ...
 

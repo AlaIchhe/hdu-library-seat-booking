@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
+from ..types import FloorInfo, RoomDetail, RoomItem, SeatPair
+
 
 class Instrumentation(Protocol):
     """可观测性接口 — 用于替代直接引用 error_tracker 单例。
@@ -73,10 +75,10 @@ class ILibraryGateway(ABC):
     def uid(self) -> str: ...
 
     @abstractmethod
-    def get_room_types(self) -> list[dict[str, Any]]: ...
+    def get_room_types(self) -> list[RoomItem]: ...
 
     @abstractmethod
-    def get_room_detail(self, room_query_string: str) -> dict[str, Any]: ...
+    def get_room_detail(self, room_query_string: str) -> RoomDetail: ...
 
     @abstractmethod
     def get_seat_map(
@@ -86,12 +88,12 @@ class ILibraryGateway(ABC):
         lookup_time: Any,
         duration_hours: int = 1,
         num: int = 1,
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[FloorInfo]: ...
 
     @abstractmethod
     def find_seat_in_floors(
-        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
-    ) -> tuple[dict[str, Any], dict[str, Any]]: ...
+        self, floors: list[FloorInfo], floor_id: str | int, seat_num: str | int
+    ) -> SeatPair: ...
 
     @abstractmethod
     def book_seat(

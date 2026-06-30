@@ -8,6 +8,7 @@ import requests
 
 from .. import constants as C
 from .. import exceptions as E
+from ..types import Json
 
 if TYPE_CHECKING:
     from ..settings import Settings
@@ -33,13 +34,13 @@ class HttpTransport:
         self.session.trust_env = s.http.trust_env
         self.session.verify = s.http.verify
 
-        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined]
+        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined,unused-ignore]
 
     def _record(self, category: str, message: str, exc: Exception | None = None) -> None:
         if self._instrumentation:
             self._instrumentation.record(category, message, exc, module=__name__)
 
-    def request(self, method: str, url: str, data: dict | None = None) -> dict:
+    def request(self, method: str, url: str, data: dict[str, str] | None = None) -> Json:
         """统一 HTTP 请求封装，含错误处理。"""
         try:
             if method == "GET":

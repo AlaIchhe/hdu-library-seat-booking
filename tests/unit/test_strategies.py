@@ -54,10 +54,10 @@ class TestFixedSeatStrategy:
         )
 
         strategy = FixedSeatStrategy()
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is not None
-        assert seat["id"] == "seat_296"
-        assert seat["title"] == "296"
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_success
+        assert result.value["id"] == "seat_296"
+        assert result.value["title"] == "296"
 
     def test_select_seat_not_found(self):
         client = MagicMock()
@@ -66,8 +66,9 @@ class TestFixedSeatStrategy:
         client.find_seat_in_floors.side_effect = SeatQueryError("找不到座位")
 
         strategy = FixedSeatStrategy()
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is None
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_failure
+        assert "找不到座位" in result.error
 
     def test_select_seat_floor_not_found(self):
         client = MagicMock()
@@ -76,8 +77,9 @@ class TestFixedSeatStrategy:
         client.find_seat_in_floors.side_effect = SeatQueryError("找不到楼层")
 
         strategy = FixedSeatStrategy()
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is None
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_failure
+        assert "找不到楼层" in result.error
 
     def test_describe(self):
         plan = self.make_plan()
@@ -106,8 +108,9 @@ class TestFixedSeatStrategy:
 
         plan = self.make_plan()
         strategy = FixedSeatStrategy()
-        _seat = strategy.select_seat(client, plan)
+        result = strategy.select_seat(client, plan)
         # 应调用 get_seat_map
+        assert result.is_success
         assert client.get_seat_map.called
 
 
@@ -141,9 +144,9 @@ class TestRandomRangeStrategy:
         floors = self.build_floors()
 
         strategy = RandomRangeStrategy(seat_range=(100, 160))
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is not None
-        num = int(seat["title"])
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_success
+        num = int(result.value["title"])
         assert 100 <= num <= 160
 
     def test_select_seat_out_of_range(self):
@@ -152,8 +155,8 @@ class TestRandomRangeStrategy:
         floors = self.build_floors()
 
         strategy = RandomRangeStrategy(seat_range=(500, 600))
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is None
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_failure
 
     def test_preferred_seats_attempt(self):
         client = MagicMock()
@@ -166,10 +169,10 @@ class TestRandomRangeStrategy:
             preferred_attempts=100,  # 确保偏好期
         )
         strategy.reset()
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is not None
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_success
         # 首次尝试应在偏好范围内
-        assert seat["title"] in ("150", "151")
+        assert result.value["title"] in ("150", "151")
 
     def test_after_preferred_attempts(self):
         client = MagicMock()
@@ -183,9 +186,9 @@ class TestRandomRangeStrategy:
         )
         strategy.reset()
         strategy.select_seat(client, plan, floors=floors)  # attempt 1 (preferred)
-        seat = strategy.select_seat(client, plan, floors=floors)  # attempt 2 (random)
+        result = strategy.select_seat(client, plan, floors=floors)  # attempt 2 (random)
         # 第二次可能在偏好之外
-        assert seat is not None
+        assert result.is_success
 
     def test_describe(self):
         plan = self.make_plan()
@@ -225,6 +228,6 @@ class TestRandomRangeStrategy:
         ]
 
         strategy = RandomRangeStrategy(seat_range=(100, 200))
-        seat = strategy.select_seat(client, plan, floors=floors)
-        assert seat is not None
-        assert seat["title"] == "150"
+        result = strategy.select_seat(client, plan, floors=floors)
+        assert result.is_success
+        assert result.value["title"] == "150"

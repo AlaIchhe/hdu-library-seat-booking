@@ -204,17 +204,18 @@ class BookingOrchestrator:
             return BookingResult(plan, False, f"座位地图查询失败: {exc}")
 
         # 5. 策略选择座位
-        seat = self.strategy.select_seat(self.client, plan, floors=floors)
-        if seat is None:
+        seat_result = self.strategy.select_seat(self.client, plan, floors=floors)
+        if seat_result.is_failure:
+            reason = seat_result.error
             error_tracker.record(
                 ErrorCategory.STRATEGY,
-                f"策略未能选出可用座位 [{plan.to_plan_code()}]",
+                f"策略未能选出可用座位 [{plan.to_plan_code()}]: {reason}",
                 module=__name__,
             )
-            return BookingResult(plan, False, "策略未能选出可用座位")
+            return BookingResult(plan, False, f"策略未能选出可用座位: {reason}")
 
         # 6. 提交预约
-        seat_id = str(seat["id"])
+        seat_id = str(seat_result.value["id"])
         if self.dry_run:
             result = self.client.book_seat(
                 seat_id,

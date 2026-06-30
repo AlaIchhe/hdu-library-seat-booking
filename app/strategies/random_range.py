@@ -8,6 +8,7 @@ import random
 from typing import Any
 
 from core.infrastructure.protocols import ILibraryGateway
+from core.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
 from ..services.base import ISeatSelectionStrategy
@@ -42,12 +43,12 @@ class RandomRangeStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     def select_seat(
         self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
-    ) -> dict[str, Any] | None:
+    ) -> Result[SeatPoi, str]:
         self._attempt += 1
         floors: list[dict[str, Any]] = kwargs.get("floors") or []  # type: ignore[assignment]
 
         # 收集范围内所有座位
-        all_seats = []
+        all_seats: list[tuple[dict[str, Any], SeatPoi]] = []
         for floor in floors:
             pois = floor.get("seatMap", {}).get("POIs", [])
             for seat in pois:
@@ -59,13 +60,13 @@ class RandomRangeStrategy(ISeatSelectionStrategy):
                     all_seats.append((floor, seat))
 
         if not all_seats:
-            return None
+            return Result.failure(f"范围 {self.low}-{self.high} 内无可用座位")
 
         # 选择逻辑：前 N 次倾向偏好座位
         candidate = self._pick_seat(all_seats)
         if candidate is None:
-            return None
-        return candidate[1]  # type: ignore[no-any-return]  # seat POI
+            return Result.failure("策略未能选出座位")
+        return Result.success(candidate[1])
 
     def describe(self, plan: BookingPlan) -> str:
         prefs = ",".join(self.preferred) if self.preferred else "无"
@@ -74,16 +75,18 @@ class RandomRangeStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     # 内部
     # ------------------------------------------------------------------
-    def _pick_seat(self, all_seats: list) -> tuple | None:
+    def _pick_seat(
+        self, all_seats: list[tuple[dict[str, Any], SeatPoi]]
+    ) -> tuple[dict[str, Any], SeatPoi] | None:
         """从座位列表中按策略选取。"""
         if self._attempt <= self.preferred_attempts and self.preferred:
             # 尝试在范围内匹配偏好座位
             pref_set = set(self.preferred)
             matched = [s for s in all_seats if str(s[1].get("title")) in pref_set]
             if matched:
-                return random.choice(matched)  # type: ignore[no-any-return]
+                return random.choice(matched)
 
-        return random.choice(all_seats)  # type: ignore[no-any-return]
+        return random.choice(all_seats)
 
     def reset(self) -> None:
         """重置尝试计数（新一轮预约前调用）。"""

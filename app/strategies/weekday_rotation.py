@@ -10,6 +10,7 @@ from typing import Any
 
 from core.domain.time import now_cst
 from core.infrastructure.protocols import ILibraryGateway
+from core.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan, Weekday
 from ..services.base import ISeatSelectionStrategy
@@ -65,7 +66,7 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     def select_seat(
         self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
-    ) -> dict[str, Any] | None:
+    ) -> Result[SeatPoi, str]:
         """根据 plan 中的 weekday 选择对应座位。"""
         floors: list[dict[str, Any]] = kwargs.get("floors", [])  # type: ignore[assignment]
 
@@ -78,7 +79,7 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
 
         cfg = self._configs.get(weekday, self._default)
         if not cfg or not cfg.get("enabled", True):
-            return None
+            return Result.failure(f"星期 {weekday} 未配置或已禁用")
 
         # 用配置中的值覆盖 plan 的参数
         floor_id = cfg.get("floor_id", plan.floor_id)
@@ -86,9 +87,9 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
 
         try:
             _, seat = gateway.find_seat_in_floors(floors, floor_id, seat_num)
-            return seat
-        except Exception:
-            return None
+            return Result.success(seat)
+        except Exception as exc:
+            return Result.failure(str(exc))
 
     def describe(self, plan: BookingPlan) -> str:
         weekday = plan.weekday

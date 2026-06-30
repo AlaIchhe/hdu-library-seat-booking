@@ -9,6 +9,7 @@ from typing import Any
 from core.exceptions import SeatQueryError
 from core.infrastructure.protocols import ILibraryGateway
 from core.metrics import ErrorCategory, error_tracker
+from core.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
 from ..services.base import ISeatSelectionStrategy
@@ -22,14 +23,14 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
 
     def select_seat(
         self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
-    ) -> dict[str, Any] | None:
+    ) -> Result[SeatPoi, str]:
         floors = kwargs.get("floors")
         if not floors:
             floors = self._fetch_floors(gateway, plan)
 
         try:
             _, seat = gateway.find_seat_in_floors(floors, plan.floor_id, plan.seat_num)  # type: ignore[arg-type]
-            return seat
+            return Result.success(seat)
         except SeatQueryError as exc:
             error_tracker.record(
                 ErrorCategory.STRATEGY,
@@ -37,7 +38,7 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
                 exc,
                 module=__name__,
             )
-            return None
+            return Result.failure(str(exc))
 
     def describe(self, plan: BookingPlan) -> str:
         return (

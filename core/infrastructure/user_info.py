@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from ..types import UserInfo
 
-def find_user_info(data: dict) -> dict | None:
+
+def find_user_info(data: dict) -> UserInfo | None:
     """递归搜索 JSON 中与用户信息匹配的字段。"""
-    candidates: list[dict] = []
+    candidates: list[UserInfo] = []
 
     def walk(obj: object, hint: str = "") -> None:
         if isinstance(obj, dict):
@@ -36,7 +38,7 @@ def find_user_info(data: dict) -> dict | None:
     return candidates[0]
 
 
-def _user_info_from_dict(data: dict, hint: str = "") -> dict | None:
+def _user_info_from_dict(data: dict, hint: str = "") -> UserInfo | None:
     """从字典中提取用户 UID 和姓名候选。"""
     id_keys = ("uid", "user_id", "userId", "booker", "id", "textRight")
     name_keys = (

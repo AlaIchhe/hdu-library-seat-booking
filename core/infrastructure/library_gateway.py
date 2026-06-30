@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
 from .. import constants as C
 from .. import exceptions as E
 from ..auth import generate_api_token
+from ..types import FloorInfo, RoomDetail, RoomItem, SeatPair
 from .protocols import ILibraryGateway
 
 if TYPE_CHECKING:
@@ -40,9 +41,10 @@ class HduLibraryGateway(ILibraryGateway):
         return self._settings.auth.uid if self._settings else ""
 
     @property
-    def urls(self) -> dict:
+    def urls(self) -> dict[str, str]:
         if self._settings:
-            return self._settings.api.model_dump()  # type: ignore[no-any-return]
+            # model_dump() 返回 dict[str, Any]，但 APIUrls 所有字段均为 str
+            return cast(dict[str, str], self._settings.api.model_dump())
         return dict(C.URLS)
 
     @property
@@ -52,7 +54,7 @@ class HduLibraryGateway(ILibraryGateway):
     # ------------------------------------------------------------------
     # 房间查询
     # ------------------------------------------------------------------
-    def get_room_types(self) -> list[dict]:
+    def get_room_types(self) -> list[RoomItem]:
         """获取所有可用的房间类型列表。"""
         url = self.urls.get("query_rooms") or C.URLS["query_rooms"]
         data = self._transport.request("GET", url)
@@ -64,7 +66,7 @@ class HduLibraryGateway(ILibraryGateway):
             room_items.append({"name": item["name"], "query": query})
         return room_items
 
-    def get_room_detail(self, room_query_string: str) -> dict:
+    def get_room_detail(self, room_query_string: str) -> RoomDetail:
         """查询单个房间的详细信息。"""
         url = self.urls.get("query_seats") or C.URLS["query_seats"]
         full_url = url + "?" + room_query_string
@@ -82,7 +84,7 @@ class HduLibraryGateway(ILibraryGateway):
         lookup_time: Any,
         duration_hours: int = 1,
         num: int = 1,
-    ) -> list[dict[str, Any]]:
+    ) -> list[FloorInfo]:
         """根据分类和参考时间查询座位布局。"""
         url = self.urls.get("query_seats") or C.URLS["query_seats"]
         payload = {
@@ -100,8 +102,8 @@ class HduLibraryGateway(ILibraryGateway):
             raise E.SeatQueryError(f"座位分布解析失败：{exc}") from exc
 
     def find_seat_in_floors(
-        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        self, floors: list[FloorInfo], floor_id: str | int, seat_num: str | int
+    ) -> SeatPair:
         """在楼层列表中定位指定楼层和座位号。"""
         floor_id = str(floor_id)
         seat_num = str(seat_num)

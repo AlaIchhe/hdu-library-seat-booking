@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -132,8 +132,9 @@ class Settings(BaseSettings):
     # --- 顶层快捷访问 ---
 
     @property
-    def urls(self) -> dict:
-        return self.api.model_dump()
+    def urls(self) -> dict[str, str]:
+        # model_dump() 返回 dict[str, Any]，但 APIUrls 所有字段均为 str
+        return cast(dict[str, str], self.api.model_dump())
 
     # --- 工厂方法 ---
 

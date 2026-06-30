@@ -24,6 +24,7 @@ from .infrastructure.protocols import ILibraryGateway, ISessionAuthenticator
 from .infrastructure.user_info import find_user_info
 from .metrics import ErrorCategory, error_tracker
 from .settings import _flatten_yaml
+from .types import FloorInfo, Json, RoomDetail, RoomItem, SeatPair
 
 
 class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
@@ -100,7 +101,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         self.session.verify = settings.http.verify
 
         # 禁用 SSL 警告
-        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined]
+        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined,unused-ignore]
 
     @property
     def uid(self) -> str:
@@ -121,7 +122,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # HTTP 请求
     # ------------------------------------------------------------------
-    def _request(self, method: str, url: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _request(self, method: str, url: str, data: dict[str, Any] | None = None) -> Json:
         """统一 HTTP 请求封装，含错误处理。"""
         try:
             if method == "GET":
@@ -297,12 +298,12 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 房间查询
     # ------------------------------------------------------------------
-    def get_room_types(self) -> list[dict[str, Any]]:
+    def get_room_types(self) -> list[RoomItem]:
         """获取所有可用的房间类型列表。
 
         返回
         -------
-        list[dict]
+        list[RoomItem]
             每个元素格式：{"name": "自习室", "query": "space_category[...]=..."}
         """
         url = self.urls.get("query_rooms") or C.URLS["query_rooms"]
@@ -315,7 +316,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             room_items.append({"name": item["name"], "query": query})
         return room_items
 
-    def get_room_detail(self, room_query_string: str) -> dict[str, Any]:
+    def get_room_detail(self, room_query_string: str) -> RoomDetail:
         """查询单个房间的详细信息（分类 ID、时间范围等）。
 
         参数
@@ -348,7 +349,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         lookup_time: Any,
         duration_hours: int = 1,
         num: int = 1,
-    ) -> list[dict[str, Any]]:
+    ) -> list[FloorInfo]:
         """根据分类和参考时间查询座位布局（楼层 + 座位 POI）。
 
         参数
@@ -390,8 +391,8 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             raise E.SeatQueryError(f"座位分布解析失败：{exc}") from exc
 
     def find_seat_in_floors(
-        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        self, floors: list[FloorInfo], floor_id: str | int, seat_num: str | int
+    ) -> SeatPair:
         """在楼层列表中定位指定楼层和座位号。
 
         参数
