@@ -27,6 +27,16 @@ Thumbs.db
 # Config (may contain credentials)
 config.yaml
 *.local.yaml
+plans.yaml
 
 # Logs
 *.log
+
+# Test artifacts (may contain credentials)
+tests/cookies.json
+tests/*.local.json
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage

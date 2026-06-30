@@ -1,30 +1,10 @@
-"""
-RoomCache — 房间/座位缓存和批量查询。
-
-提取 Master（utils/master.py）和 Killer（utils/killer.py）中完全重复的：
-  - 房间类型 + 详情批量查询
-  - 座位布局批量查询
-  - 楼层/座位信息访问
-  - 预约计划构建
-"""
-
 from time import sleep
 
+from .metrics import ErrorCategory, error_tracker
 from .utils import get_seat_lookup_time
 
 
 class RoomCache:
-    """共享房间缓存 — 封装 Master 和 Killer 共用的批量查询与数据访问逻辑。
-
-    使用方法
-    --------
-    cache = RoomCache(client, delay=2)
-    room_names = cache.update_rooms()
-    floors = cache.get_floor_names("自习室")
-    seats = cache.get_seats("自习室", "2楼")
-    plan = cache.build_plan("自习室", begin_time, 3, seats_info, seat_bookers)
-    """
-
     def __init__(self, client, delay=2):
         """初始化房间缓存。
 
@@ -46,7 +26,6 @@ class RoomCache:
         """获取所有房间类型及其详情，构建 rooms 缓存字典。
 
         使用 HduLibraryClient.get_room_types() 和 get_room_detail()，
-        替代各项目中直接操作 session 的重复代码。
 
         返回
         -------
@@ -59,25 +38,8 @@ class RoomCache:
             sleep(self.delay)
         return rooms
 
-    def query_seats(self, rooms=None, cancel_flag=None,
-                    re_query_on_error=False):
-        """对每个房间查询座位布局，填充 floors 和 seats 字段。
+    def query_seats(self, rooms=None, cancel_flag=None, re_query_on_error=False):
 
-        参数
-        ----------
-        rooms : dict, optional
-            要查询的房间字典。若为 None，使用 self.rooms。
-        cancel_flag : callable, optional
-            若提供，每次循环前调用；返回 True 时中止查询。
-        re_query_on_error : bool, optional
-            若为 True，查询失败时自动重新查询房间列表。
-            默认 False（Killer 行为）。Master 使用 True。
-
-        返回
-        -------
-        dict or None
-            更新后的 rooms 字典。若 cancel_flag 触发则返回 None。
-        """
         if rooms is None:
             rooms = self.rooms
 
@@ -92,23 +54,25 @@ class RoomCache:
             con_id = detail["space_category"]["content_id"]
 
             try:
-                floors = self.client.get_seat_map(
-                    cat_id, con_id, lookup_time, 1, 1
+                floors = self.client.get_seat_map(cat_id, con_id, lookup_time, 1, 1)
+            except Exception as exc:
+                error_tracker.record(
+                    ErrorCategory.SEAT_QUERY,
+                    f"房间缓存座位查询失败 [{room_name}]",
+                    exc,
+                    module=__name__,
                 )
-            except Exception:
                 if re_query_on_error:
                     rooms = self.query_rooms()
                     return rooms
                 raise
 
-            rooms[room_name]["floors"] = {
-                f["roomName"]: f for f in floors
-            }
+            rooms[room_name]["floors"] = {f["roomName"]: f for f in floors}
 
             for floor_name in list(rooms[room_name]["floors"].keys()):
-                rooms[room_name]["floors"][floor_name]["seats"] = (
-                    rooms[room_name]["floors"][floor_name]["seatMap"]["POIs"]
-                )
+                rooms[room_name]["floors"][floor_name]["seats"] = rooms[room_name]["floors"][
+                    floor_name
+                ]["seatMap"]["POIs"]
 
             sleep(self.delay)
 
@@ -148,26 +112,7 @@ class RoomCache:
     # ------------------------------------------------------------------
     @staticmethod
     def build_plan(room_name, begin_time, duration, seats_info, seat_bookers):
-        """构建预约计划字典 — Master 和 Killer 使用完全相同的结构。
 
-        参数
-        ----------
-        room_name : str
-            房间名称。
-        begin_time : datetime
-            预约开始时间。
-        duration : int
-            预约时长（小时）。
-        seats_info : list[dict]
-            座位信息列表，每个元素包含 roomName, floorName, seatId, seatNum 等。
-        seat_bookers : list or tuple
-            预约人 UID 列表。
-
-        返回
-        -------
-        dict
-            标准化的预约计划字典。
-        """
         return {
             "roomName": room_name,
             "beginTime": begin_time,

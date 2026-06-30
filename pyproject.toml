@@ -1,0 +1,148 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "hdu-library-booking"
+version = "1.0.0"
+description = "杭州电子科技大学图书馆座位自动预约系统"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+hdu-book = "app.ui.cli:main"
+hdu-tui = "main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.11.0",
+    "mypy>=1.0",
+    "bandit>=1.7",
+    "pre-commit>=4.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["core*", "app*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: 冒烟测试 — 使用真实凭据验证端到端核心流程",
+    "contract: 契约测试 — 验证 API 响应结构、字段类型和错误码契约",
+    "slow: 耗时较长的测试",
+    "static: 静态代码分析测试 — ruff + mypy + bandit",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — fast Python linter & formatter
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".tox",
+    "dist",
+    "build",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "C4",     # flake8-comprehensions
+    "PT",     # flake8-pytest-style
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "E501",                        # line too long (handled by formatter)
+    "B008",                        # do not perform function calls in argument defaults (too strict)
+    "PT001",                       # @pytest.fixture() should have parens (noise)
+    "PT023",                       # @pytest.mark.* on classes not needed
+    "RUF001", "RUF002", "RUF003", # ambiguous-unicode-character (干扰中文项目)
+    "N812",                        # lowercase `constants` imported as `C` — 项目命名惯例
+    "N818",                        # exception suffix `Error` not required for domain exceptions
+    "SIM105",                      # try-except-pass 在框架代码中更可读
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "S101",    # assert (fine in tests)
+    "PT004",   # missing fixture parens
+    "PT005",   # incorrect fixture scope
+    "PT009",   # use a regular assert (pytest.raises is fine)
+    "PT011",   # pytest.raises({exc}) too broad (acceptable in test frameworks)
+    "SIM117",  # merged context-manager with statements (test readability)
+]
+"core/auth.py" = ["S324"]   # hashlib.md5 is used by the API protocol, not for password hashing
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ---------------------------------------------------------------------------
+# Mypy — static type checker
+# ---------------------------------------------------------------------------
+# 策略：基础检查全开，disallow_untyped_defs 仅对已完善类型注解的模块启用。
+# 逐步扩大 disallow_untyped_defs 覆盖范围。
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+strict_equality = true
+ignore_missing_imports = true
+show_error_codes = true
+pretty = true
+color_output = true
+
+[[tool.mypy.overrides]]
+module = [
+    "core.constants",
+    "core.exceptions",
+    "app.models.plan",
+    "app.services.plan_repository",
+    "app.services.notification_service",
+]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+]
+ignore_errors = true
+
+# ---------------------------------------------------------------------------
+# Bandit — security linter
+# ---------------------------------------------------------------------------
+[tool.bandit]
+exclude_dirs = [".git", ".venv", "venv", "__pycache__", ".tox", "dist", "build", "tests"]
+skips = [
+    "B101",   # assert_used (fine in prod code for invariants)
+    "B311",   # random (used for non-crypto seat selection)
+]

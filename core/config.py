@@ -1,11 +1,14 @@
 """
 配置文件读写。
 
-提供简单的 YAML 加载 / 保存函数，替代各项目中重复的 ConfigParser 类。
+提供简单的 YAML 加载 / 保存函数。
 """
 
-import yaml
 from pathlib import Path
+
+import yaml
+
+from .metrics import ErrorCategory, error_tracker
 
 
 def load_yaml_config(path):
@@ -21,8 +24,24 @@ def load_yaml_config(path):
     dict
         解析后的配置字典。
     """
-    with Path(path).open("r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    try:
+        with Path(path).open("r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        error_tracker.record(
+            ErrorCategory.CONFIG,
+            f"配置文件不存在：{path}",
+            module=__name__,
+        )
+        raise
+    except Exception as exc:
+        error_tracker.record(
+            ErrorCategory.CONFIG,
+            f"配置文件读取失败：{path}",
+            exc,
+            module=__name__,
+        )
+        raise
 
 
 def save_yaml_config(path, data):
@@ -35,8 +54,17 @@ def save_yaml_config(path, data):
     data : dict
         要保存的配置数据。
     """
-    with Path(path).open("w", encoding="utf-8") as f:
-        yaml.dump(data, f, encoding="utf-8", allow_unicode=True)
+    try:
+        with Path(path).open("w", encoding="utf-8") as f:
+            yaml.dump(data, f, encoding="utf-8", allow_unicode=True)
+    except Exception as exc:
+        error_tracker.record(
+            ErrorCategory.CONFIG,
+            f"配置文件写入失败：{path}",
+            exc,
+            module=__name__,
+        )
+        raise
 
 
 def create_default_config(path, template_yaml):
@@ -47,8 +75,17 @@ def create_default_config(path, template_yaml):
     path : str or Path
         配置文件路径。
     template_yaml : str
-        YAML 模板字符串（各项目可自定义内容）。
+        YAML 模板字符串。
     """
-    config = yaml.safe_load(template_yaml)
+    try:
+        config = yaml.safe_load(template_yaml)
+    except Exception as exc:
+        error_tracker.record(
+            ErrorCategory.CONFIG,
+            "模板 YAML 解析失败",
+            exc,
+            module=__name__,
+        )
+        raise
     save_yaml_config(path, config)
     return config

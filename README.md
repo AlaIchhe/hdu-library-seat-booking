@@ -1,82 +1,116 @@
 # HDU Library Seat Booking
 
-杭州电子科技大学图书馆座位自动预约系统 — 共享核心库。
+杭州电子科技大学图书馆座位自动预约系统。
 
-## 简介
+## 部署
 
-`core` 是从四个 HDU 图书馆自动预约项目（Instant、Master、AUTO_BOOK、Killer）中提取的公共逻辑库，提供统一的 API 客户端、认证、签名和工具函数，实现与[慧图图书馆管理平台](https://hdu.huitu.zhishulib.com)的全部 HTTP 交互。
+### 环境要求
 
-## 功能
+- Python 3.10+
+- pip
 
-- **API 客户端** — 会话管理、房间查询、座位查询、预约提交
-- **双认证方式** — Cookie 免密认证 / 用户名密码登录
-- **Api-Token 签名** — MD5 + Base64 反篡改签名
-- **配置管理** — YAML 配置文件读写
-- **智能重试** — 根据服务器错误消息自动决策（重试/放弃/停止）
-- **时间工具** — 北京时间 (UTC+8) 转换、预约计划解析
-
-## 安装
+### 安装依赖
 
 ```bash
 pip install requests pyyaml
 ```
 
-## 快速开始
+### 运行
+
+终端交互模式：
+
+```bash
+python main.py
+```
+
+命令行一次性执行：
+
+```bash
+# Cookie 认证
+python main.py --cli --cookie "uid=xxx;auth=yyy" --plan "1:1558:296:13:9"
+
+# 密码认证
+python main.py --cli --user 21012345 --passwd mypass --plan "1:1558:296:13:9"
+
+# 预览模式（不实际提交）
+python main.py --cli --cookie "..." --plan "..." --dry-run
+
+# 定时预约
+python main.py --cli --cookie "..." --plan "..." --at "19:59:30"
+
+# 环境变量
+export HDU_COOKIE="uid=xxx;auth=yyy"
+export HDU_PLAN="1:1558:296:13:9"
+python main.py --cli
+```
+
+### pip 安装（可选）
+
+```bash
+pip install .
+hdu-tui        # 终端交互模式
+hdu-book --cookie "..." --plan "..."
+```
+
+### 服务器部署（cron 定时任务）
+
+```bash
+# 每天 19:58 自动执行预约
+58 19 * * * cd /path/to/project && python main.py --cli >> booking.log 2>&1
+```
+
+## 错误追踪
+
+系统内置了全面的错误插桩（Instrumentation），自动追踪各类运行错误。
+
+### 查看错误报告
+
+```bash
+# 命令行打印错误统计
+python main.py --cli --report
+
+# 导出 JSON 格式报告
+python main.py --cli --report-json errors.json
+```
+
+### 程序中获取追踪数据
 
 ```python
-from core import HduLibraryClient
+from core.metrics import error_tracker, ErrorCategory
 
-# Cookie 认证
-client = HduLibraryClient()
-client.set_cookie_header("uid=xxx; auth=yyy; ...")
-client.resolve_uid()
+# 查看摘要
+print(error_tracker.summary())
 
-# 查询房间
-rooms = client.get_room_types()
-detail = client.get_room_detail(rooms[0]["query"])
+# 按类别查询
+print(f"网络错误: {error_tracker.count(ErrorCategory.NETWORK)}")
+print(f"预约失败: {error_tracker.count(ErrorCategory.BOOKING)}")
 
-# 查询座位
-from core.utils import build_begin_time
-begin = build_begin_time(13, book_days=1)
-floors = client.get_seat_map(
-    detail["space_category"]["category_id"],
-    detail["space_category"]["content_id"],
-    begin, duration_hours=9,
-)
+# 导出 JSON
+error_tracker.export_json("errors.json")
 
-# 定位座位
-floor, seat = client.find_seat_in_floors(floors, floor_id=1558, seat_num="296")
-
-# 提交预约
-result = client.book_seat(seat["id"], client.uid, begin, 9)
+# 获取最近错误
+for r in error_tracker.recent(10):
+    print(f"[{r.category}] {r.message}")
 ```
 
-## 项目结构
+### 追踪的错误类别
 
-```
-core/
-├── __init__.py      # 统一导出
-├── api.py           # HduLibraryClient HTTP 客户端
-├── auth.py          # Api-Token 签名 (MD5 + Base64)
-├── config.py        # YAML 配置读写
-├── constants.py     # URL、Headers、错误消息等常量
-├── exceptions.py    # 异常层次结构
-├── room_cache.py    # 房间信息缓存
-├── config_parser.py # 配置解析器
-└── utils.py         # 时间工具函数
-```
-
-## 依赖
-
-| 包 | 最低版本 | 用途 |
-|---|---|---|
-| `requests` | 2.28 | HTTP 客户端 |
-| `PyYAML` | 6.0 | YAML 配置解析 |
-
-## 文档
-
-- [产品需求文档](docs/requirements.md)
-- [核心库技术文档](docs/core.md)
+| 类别 | 说明 |
+|------|------|
+| `network` | HTTP 请求失败、超时、连接错误 |
+| `auth` | 登录失败、Cookie 无效、UID 识别失败 |
+| `config` | 配置文件读取/写入/解析错误 |
+| `room_query` | 房间类型/详情查询失败 |
+| `seat_query` | 座位地图查询/搜索失败 |
+| `booking` | 预约提交被拒绝 |
+| `booking_validation` | 方案参数校验失败 |
+| `booking_cancelled` | 用户主动取消 |
+| `persistence` | 方案文件读写失败 |
+| `notification` | 通知发送失败 |
+| `json_parse` | JSON 解析失败 |
+| `strategy` | 座位选择策略失败 |
+| `ui` | 终端界面交互错误 |
+| `unknown` | 未分类错误 |
 
 ## 安全提示
 

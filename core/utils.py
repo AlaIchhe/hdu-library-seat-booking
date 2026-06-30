@@ -58,9 +58,7 @@ def parse_plan_code(plan_text):
             "duration_hours": int(duration_hours),
         }
     except Exception as exc:
-        raise ValueError(
-            "plan 格式应为 roomType:floorId:seatNum:startHour:durationHours"
-        ) from exc
+        raise ValueError("plan 格式应为 roomType:floorId:seatNum:startHour:durationHours") from exc
 
 
 def parse_execute_time(execute_at_str):
@@ -135,11 +133,9 @@ def normalize_execute_time(value):
 
 def is_time_out_of_range(result):
     """判断预约结果是否为"超出时间范围"错误。"""
-    message = str(
-        (result.get("MESSAGE") or
-         (result.get("DATA") or {}).get("msg") or "")
-    )
+    message = str(result.get("MESSAGE") or (result.get("DATA") or {}).get("msg") or "")
     from .constants import MSG_TIME_OUT_OF_RANGE
+
     return MSG_TIME_OUT_OF_RANGE in message
 
 
