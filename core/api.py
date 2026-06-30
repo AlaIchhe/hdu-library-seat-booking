@@ -194,6 +194,30 @@ class HduLibraryClient:
             self.session.cookies.set_cookie(cookie)
 
     # ------------------------------------------------------------------
+    # Cookie 有效性验证
+    # ------------------------------------------------------------------
+    def validate_cookie(self) -> bool:
+        """验证当前 Session 中的 Cookie 是否仍然有效。
+
+        通过调用 user_base_info 端点并检查响应是否包含有效的 UID
+        来判断，而非仅依赖本地 Cookie 解析。
+
+        返回
+        -------
+        bool
+            True 表示 Cookie 有效且能识别用户。
+        """
+        url = self.urls.get("user_base_info") or C.URLS.get("user_base_info")
+        if not url:
+            return False
+        try:
+            data = self._request("GET", url)
+        except E.HduLibraryError:
+            return False
+        candidate = self._find_user_info(data)
+        return bool(candidate and candidate.get("uid"))
+
+    # ------------------------------------------------------------------
     # 认证（用户名密码登录）
     # ------------------------------------------------------------------
     def login(self, username=None, password=None, org_id=None):

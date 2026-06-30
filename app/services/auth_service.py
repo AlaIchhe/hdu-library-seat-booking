@@ -2,13 +2,21 @@
 认证服务。
 
 编排 Cookie / 密码两种认证流程，支持交互式密码输入。
+启动时自动加载项目根目录下的 .env 文件（如果存在）。
 """
 
 import getpass
+from pathlib import Path
+
+import dotenv
 
 from core import HduLibraryClient
 from core.exceptions import CookieError
 from core.metrics import ErrorCategory, error_tracker
+
+# 加载项目根目录的 .env（不覆盖已有环境变量）
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+dotenv.load_dotenv(_PROJECT_ROOT / ".env", override=False)
 
 
 class AuthService:
@@ -23,8 +31,13 @@ class AuthService:
     # ------------------------------------------------------------------
     # Cookie 认证
     # ------------------------------------------------------------------
-    def authenticate_with_cookie(self, cookie_string: str) -> bool:
+    def authenticate_with_cookie(self, cookie_string: str, validate: bool = True) -> bool:
         """使用 Cookie 字符串认证。
+
+        参数
+        ----------
+        validate : bool
+            True（默认）时会发起一次真实 API 请求验证 Cookie 是否有效。
 
         Returns
         -------
@@ -40,15 +53,34 @@ class AuthService:
             raise CookieError("Cookie 字符串为空")
 
         self.client.set_cookie_header(cookie_string)
-        # 验证 Cookie 有效性
-        uid = self.client.resolve_uid()
-        return bool(uid)
+        self.client.resolve_uid()
+        if validate and not self.client.validate_cookie():
+            error_tracker.record(
+                ErrorCategory.AUTH,
+                "Cookie 字符串已过期或无效",
+                module=__name__,
+            )
+            return False
+        return bool(self.client.uid)
 
-    def authenticate_with_cookie_file(self, json_path: str) -> bool:
-        """从 Netscape JSON Cookie 文件认证。"""
+    def authenticate_with_cookie_file(self, json_path: str, validate: bool = True) -> bool:
+        """从 Netscape JSON Cookie 文件认证。
+
+        参数
+        ----------
+        validate : bool
+            True（默认）时会发起一次真实 API 请求验证 Cookie 是否有效。
+        """
         self.client.set_cookies_from_json_file(json_path)
-        uid = self.client.resolve_uid()
-        return bool(uid)
+        self.client.resolve_uid()
+        if validate and not self.client.validate_cookie():
+            error_tracker.record(
+                ErrorCategory.AUTH,
+                f"Cookie 文件已过期或无效：{json_path}",
+                module=__name__,
+            )
+            return False
+        return bool(self.client.uid)
 
     # ------------------------------------------------------------------
     # 密码登录

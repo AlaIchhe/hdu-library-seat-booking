@@ -8,6 +8,9 @@
 import argparse
 import os
 import sys
+from pathlib import Path
+
+import dotenv
 
 from core import HduLibraryClient
 from core.metrics import ErrorCategory, error_tracker
@@ -31,6 +34,9 @@ from ..services.notification_service import (
 )
 from ..services.plan_service import PlanService
 from ..strategies.fixed_seat import FixedSeatStrategy
+
+# 加载项目根目录的 .env（不覆盖已有环境变量）
+dotenv.load_dotenv(Path(__file__).resolve().parent.parent.parent.parent / ".env", override=False)
 
 
 class CLI:

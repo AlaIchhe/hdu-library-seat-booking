@@ -2,7 +2,7 @@
 冒烟测试 (Smoke Tests) — 使用真实凭据验证端到端核心流程。
 
 冒烟测试覆盖图书馆预约系统的关键用户路径：
-  1. 登录认证
+  1. 登录认证（Cookie 验证 + 密码登录 fallback）
   2. 房间类型查询
   3. 房间详情获取
   4. 座位地图查询
@@ -23,10 +23,9 @@
   # 跳过慢速测试
   pytest tests/test_smoke.py -v -m "smoke and not slow"
 
-凭据环境变量（优先于默认值）：
-  HDU_USERNAME   — 学号/登录名
-  HDU_PASSWORD   — 密码
-  HDU_ORG_ID     — 机构 ID
+凭据来源（按优先级）：
+  1. 项目根目录 .env 文件（python-dotenv 自动加载）
+  2. 环境变量 HDU_USERNAME / HDU_PASSWORD / HDU_ORG_ID
 """
 
 import os
@@ -34,10 +33,14 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import dotenv
 import pytest
 
 # 确保项目根目录在 path 中
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# 加载项目根目录的 .env（不覆盖已有环境变量）
+dotenv.load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 from app.models.plan import BookingPlan, PlanStatus, Weekday
 from app.services.auth_service import AuthService
@@ -57,11 +60,21 @@ from core.auth import generate_api_token
 # 凭据
 # ============================================================================
 def _credentials():
+    """从环境变量读取凭据，无硬编码默认值。"""
+    username = os.environ.get("HDU_USERNAME", "")
+    password = os.environ.get("HDU_PASSWORD", "")
+    org_id = os.environ.get("HDU_ORG_ID", "104")
     return {
-        "username": os.environ.get("HDU_USERNAME", "23320116"),
-        "password": os.environ.get("HDU_PASSWORD", "Zhuhe@0618"),
-        "org_id": os.environ.get("HDU_ORG_ID", "104"),
+        "username": username,
+        "password": password,
+        "org_id": org_id,
     }
+
+
+def _has_credentials() -> bool:
+    """检查是否配置了用户名和密码。"""
+    creds = _credentials()
+    return bool(creds["username"] and creds["password"])
 
 
 # ============================================================================
@@ -84,55 +97,70 @@ def authed_client(client):
     """已登录认证的客户端。
 
     认证策略（按优先级）：
-      1. Cookie 文件 (tests/cookies.json) — 推荐方式
-      2. 环境变量 HDU_COOKIE_FILE — 指定自定义 cookie 文件路径
-      3. SSO 密码登录 — 需要浏览器环境支持 (Playwright)
+      1. Cookie 文件 — 加载后发起真实 API 请求验证有效性
+      2. 环境变量中的 Cookie 字符串 — 同样验证有效性
+      3. SSO 密码登录 — 使用 .env 中的凭据
+
+    关键改进：Cookie 加载后不再仅依赖本地解析，而是通过
+    validate_cookie() 发起真实 HTTP 请求确认未过期。
     """
     cookie_file = os.environ.get(
         "HDU_COOKIE_FILE",
         str(Path(__file__).parent / "cookies.json"),
     )
 
-    # 策略 1: 从 Cookie 文件加载
+    # 策略 1: 从 Cookie 文件加载 + 验证
     if Path(cookie_file).exists():
         try:
             client.set_cookies_from_json_file(cookie_file)
             client.resolve_uid()
-            if client.uid:
+            # 关键：验证 Cookie 是否真正有效（发起真实 API 请求）
+            if client.uid and client.validate_cookie():
                 return client
+            # Cookie 已过期，继续下一策略
         except Exception:
             pass  # Cookie 加载失败，尝试下一策略
 
-    # 策略 2: 环境变量中的 Cookie 字符串
+    # 策略 2: 环境变量中的 Cookie 字符串 + 验证
     cookie_str = os.environ.get("HDU_COOKIE")
     if cookie_str:
         try:
             client.set_cookie_header(cookie_str)
             client.resolve_uid()
-            if client.uid:
+            if client.uid and client.validate_cookie():
                 return client
         except Exception:
             pass
 
     # 策略 3: SSO 密码登录（需要浏览器自动化）
-    creds = _credentials()
-    try:
-        ok = _login_via_sso_browser(client, creds)
-        if ok and client.uid:
-            return client
-    except Exception:
-        pass
+    if _has_credentials():
+        creds = _credentials()
+        try:
+            ok = _login_via_sso_browser(client, creds)
+            if ok and client.uid:
+                return client
+        except Exception:
+            pass
 
     # 所有策略均失败
+    creds = _credentials()
+    missing = []
+    if not Path(cookie_file).exists():
+        missing.append(f"Cookie 文件不存在: {cookie_file}")
+    if not creds["username"]:
+        missing.append("未设置 HDU_USERNAME（检查 .env 或环境变量）")
+    if not creds["password"]:
+        missing.append("未设置 HDU_PASSWORD（检查 .env 或环境变量）")
+
     pytest.fail(
-        f"所有认证方式均失败。\n"
-        f"  Cookie 文件: {cookie_file} (存在: {Path(cookie_file).exists()})\n"
-        f"  用户名: {creds['username']}\n"
-        f"  机构ID: {creds['org_id']}\n"
-        f"请:\n"
-        f"  1) 在浏览器中登录 https://hdu.huitu.zhishulib.com\n"
-        f"  2) 导出 Cookies 为 JSON 保存到 {cookie_file}\n"
-        f"  3) 或设置环境变量 HDU_COOKIE_FILE 指向 cookie 文件"
+        "所有认证方式均失败。\n"
+        + "\n".join(f"  - {m}" for m in missing)
+        + "\n请:\n"
+        + "  1) 在 .env 文件中填写 HDU_USERNAME 和 HDU_PASSWORD\n"
+        + "  2) 或在浏览器中登录并导出 Cookie 到 "
+        + cookie_file
+        + "\n"
+        + "  3) 或设置环境变量 HDU_COOKIE"
     )
 
 
@@ -183,18 +211,24 @@ class TestSmokeAuthentication:
     """认证流程冒烟。"""
 
     def test_login_succeeds(self, client):
-        """使用真实凭据登录应返回 True。
+        """认证必须成功：Cookie 有效 或 密码登录有效。
 
-        HDU 使用 CAS SSO 统一认证，直接 POST 到图书馆
-        login 端点会失败。此测试先尝试 Cookie 文件认证。
+        改进：Cookie 加载后通过 validate_cookie() 发起真实 API
+        请求验证，而非仅依赖本地解析。
         """
         cookie_file = Path(__file__).parent / "cookies.json"
         if cookie_file.exists():
             client.set_cookies_from_json_file(str(cookie_file))
             client.resolve_uid()
             assert client.uid, "Cookie 认证后 UID 不应为空"
+            # 验证 Cookie 真正有效（真实 API 请求）
+            assert client.validate_cookie(), "Cookie 已过期或无效"
         else:
-            # 尝试 SSO 登录（需要 Playwright）
+            # 尝试 SSO 登录（需要 Playwright + 凭据）
+            if not _has_credentials():
+                pytest.skip(
+                    "无 Cookie 文件且未配置凭据（检查 .env 中的 HDU_USERNAME/HDU_PASSWORD）"
+                )
             creds = _credentials()
             ok = _login_via_sso_browser(client, creds)
             if not ok:
@@ -251,20 +285,22 @@ class TestSmokeRoomQuery:
 # ============================================================================
 # 冒烟测试 3: 座位查询与定位
 # ============================================================================
+@pytest.fixture(scope="module")
+def first_room_floors(authed_client):
+    """模块级 fixture：获取第一个房间的楼层座位数据，供所有冒烟测试类共享。"""
+    rooms = authed_client.get_room_types()
+    detail = authed_client.get_room_detail(rooms[0]["query"])
+    sc = detail["space_category"]
+    return authed_client.get_seat_map(
+        str(sc["category_id"]),
+        str(sc["content_id"]),
+        datetime.now(),
+        1,
+    )
+
+
 class TestSmokeSeatQuery:
     """座位地图查询 & 座位定位冒烟。"""
-
-    @pytest.fixture(scope="module")
-    def first_room_floors(self, authed_client):
-        rooms = authed_client.get_room_types()
-        detail = authed_client.get_room_detail(rooms[0]["query"])
-        sc = detail["space_category"]
-        return authed_client.get_seat_map(
-            str(sc["category_id"]),
-            str(sc["content_id"]),
-            datetime.now(),
-            1,
-        )
 
     def test_seat_map_has_floors(self, first_room_floors):
         """座位地图应有至少一个楼层。"""

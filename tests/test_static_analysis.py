@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -14,23 +16,45 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _find_tool(module_name: str) -> str | None:
+    """定位工具可执行文件：优先 shutil.which，回退到 python -m。"""
+    # 1) 在 PATH 中查找（Windows: ruff.exe / mypy.exe / bandit.exe）
+    if path := shutil.which(module_name):
+        return path
+    # 2) 回退到 python -m（要求工具在当前 Python 中可 import）
+    return None
+
+
 def _run_tool(args: list[str], *, timeout: int = 120) -> subprocess.CompletedProcess[str]:
     """在项目根目录运行一个静态分析工具并返回 CompletedProcess。"""
+    module_name = args[0]
+    tool_path = _find_tool(module_name)
+    cmd = [tool_path, *args[1:]] if tool_path else [sys.executable, "-m", *args]
+    # 使用 encoding="utf-8" + errors="replace" 避免 Windows GBK 编码问题
+    # （subprocess 的 _readerthread 在 GBK locale 下读取 UTF-8 输出会崩溃）
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     return subprocess.run(
-        [sys.executable, "-m", *args],
+        cmd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=str(ROOT),
         timeout=timeout,
+        env=env,
     )
 
 
 def _assert_success(proc: subprocess.CompletedProcess[str], tool: str) -> None:
-    """断言工具零退出码；失败时打印 stderr + stdout 前 80 行并 raise。"""
+    """断言工具零退出码；失败时打印 stderr + stdout 前 80 行并 raise。
+
+    注意：Windows 上 text=True + capture_output 可能因 GBK 编码问题
+    导致 stdout/stderr 为 None，此处做防御性处理。
+    """
     if proc.returncode == 0:
         return
-    stdout = proc.stdout.strip()
-    stderr = proc.stderr.strip()
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
     detail = "\n".join(line for part in (stdout, stderr) if part for line in part.splitlines()[:80])
     pytest.fail(
         f"{tool} 发现错误 (exit={proc.returncode})：\n{detail}\n\n"
