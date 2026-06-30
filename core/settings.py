@@ -73,6 +73,7 @@ class LoggingConfig(BaseModel):
         default="INFO", description="日志级别"
     )
     file: str = Field(default="booking.log", description="日志文件路径")
+    json_format: bool = Field(default=False, description="使用 JSON 格式输出（生产环境）")
 
 
 class PlansConfig(BaseModel):

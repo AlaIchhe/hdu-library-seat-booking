@@ -74,7 +74,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         if settings is None:
             from .settings import Settings, _unflatten_keys
 
-            if isinstance(config, (str, Path)):
+            if isinstance(config, str | Path):
                 settings = Settings.from_yaml(config)
             elif config:
                 nested = _unflatten_keys(_flatten_yaml(config))
@@ -459,7 +459,6 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         is_recommend: int = 1,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-
         begin_ts = int(begin_time.timestamp())
         duration_sec = int(duration_hours * 3600)
         uid_str = str(uid)

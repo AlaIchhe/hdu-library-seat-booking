@@ -276,8 +276,18 @@ class CLI:
 # ======================================================================
 def main() -> None:
     """CLI 主入口。"""
+    _configure_observability()
     cli = CLI()
     sys.exit(cli.run())
+
+
+def _configure_observability() -> None:
+    """初始化结构化日志。"""
+    from core import get_settings
+    from core.observability import configure_from_config
+
+    settings = get_settings()
+    configure_from_config(settings.logging_cfg)
 
 
 if __name__ == "__main__":

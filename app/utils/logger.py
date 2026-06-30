@@ -1,5 +1,10 @@
 """
 日志与进度工具。
+
+提供结构化日志配置（基于 structlog）和终端进度动画。
+
+setup_logging() 保留为向后兼容的委托函数，新代码应使用
+core.observability.configure_logging()。
 """
 
 import logging
@@ -10,7 +15,9 @@ from typing import ClassVar
 
 
 def setup_logging(level: int = logging.INFO, log_file: str = "") -> logging.Logger:
-    """配置应用日志。
+    """配置应用日志（向后兼容委托）。
+
+    新代码请使用 ``core.observability.configure_logging()``。
 
     Parameters
     ----------
@@ -24,22 +31,12 @@ def setup_logging(level: int = logging.INFO, log_file: str = "") -> logging.Logg
     logging.Logger
         根 logger。
     """
-    fmt = logging.Formatter(
-        "[%(asctime)s] %(levelname)-7s %(name)s | %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    from core.observability import configure_logging
 
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-    if log_file:
-        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+    level_name = logging.getLevelName(level)
+    configure_logging(level=level_name, log_file=log_file, json_format=False)
 
-    root = logging.getLogger()
-    root.setLevel(level)
-    for h in handlers:
-        h.setFormatter(fmt)
-        root.addHandler(h)
-
-    return root
+    return logging.getLogger()
 
 
 # ======================================================================

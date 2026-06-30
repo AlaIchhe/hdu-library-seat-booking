@@ -44,7 +44,6 @@ class RoomCache:
         cancel_flag: Callable[[], bool] | None = None,
         re_query_on_error: bool = False,
     ) -> dict[str, dict[str, Any]] | None:
-
         if rooms is None:
             rooms = self.rooms
         if rooms is None:
@@ -140,7 +139,6 @@ class RoomCache:
         seats_info: Any,
         seat_bookers: Any,
     ) -> dict[str, Any]:
-
         return {
             "roomName": room_name,
             "beginTime": begin_time,

@@ -31,11 +31,22 @@ from .infrastructure.library_gateway import HduLibraryGateway
 from .infrastructure.protocols import (
     ILibraryGateway,
     Instrumentation,
+    IObservability,
     ISessionAuthenticator,
     NullInstrumentation,
+    NullObservability,
 )
 from .infrastructure.session_auth import SessionAuthenticator
 from .metrics import ErrorCategory, ErrorRecord, ErrorTracker, error_tracker
+from .observability import (
+    MetricsCollector,
+    configure_from_config,
+    configure_logging,
+    get_correlation_id,
+    get_logger,
+    metrics_collector,
+    set_correlation_id,
+)
 from .room_cache import RoomCache
 from .settings import Settings, get_settings
 
@@ -65,19 +76,28 @@ __all__ = [
     "HduLibraryGateway",
     "HttpTransport",
     "ILibraryGateway",
+    "IObservability",
     "ISessionAuthenticator",
     "Instrumentation",
     "LoginError",
+    "MetricsCollector",
     "NullInstrumentation",
+    "NullObservability",
     "RoomCache",
     "RoomQueryError",
     "SeatQueryError",
     "SessionAuthenticator",
     "Settings",
+    "configure_from_config",
+    "configure_logging",
     "create_default_config",
     "error_tracker",
     "generate_api_token",
+    "get_correlation_id",
+    "get_logger",
     "get_settings",
     "load_yaml_config",
+    "metrics_collector",
     "save_yaml_config",
+    "set_correlation_id",
 ]

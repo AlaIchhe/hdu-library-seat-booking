@@ -23,7 +23,6 @@ def generate_api_token(
     is_recommend: int = 1,
     api_time: int | None = None,
 ) -> tuple[str, int]:
-
     if api_time is None:
         api_time = int(datetime.now().timestamp())
 

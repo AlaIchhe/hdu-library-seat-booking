@@ -43,6 +43,87 @@ class NullInstrumentation:
         return 0
 
 
+# ---------------------------------------------------------------------------
+# 扩展的可观测性协议 — 日志 + 指标 + 追踪
+# ---------------------------------------------------------------------------
+
+
+class IObservability(Protocol):
+    """统一可观测性协议：错误记录 + 结构化日志 + 指标 + 关联追踪。
+
+    此协议扩展了 Instrumentation，为应用层提供完整的可观测性能力。
+    ``MetricsCollector`` 结合 ``structlog`` 可满足此协议。
+
+    用法::
+
+        def book_all(self, obs: IObservability, ...):
+            obs.log("info", "booking_started", plan=plan.code)
+            obs.metric("booking_requests_total", labels={"status": "success"})
+    """
+
+    # --- 错误记录 (继承自 Instrumentation) ---
+    def record(
+        self,
+        category: str,
+        message: str,
+        exc: Exception | None = None,
+        module: str = "",
+    ) -> None: ...
+
+    @property
+    def total(self) -> int: ...
+
+    # --- 结构化日志 ---
+    def log(self, level: str, message: str, **kwargs: Any) -> None: ...
+
+    # --- 指标 ---
+    def metric(
+        self,
+        name: str,
+        value: float = 1.0,
+        labels: dict[str, str] | None = None,
+        metric_type: str = "counter",
+    ) -> None: ...
+
+    # --- 关联追踪 ---
+    def set_correlation(self, cid: str | None = None) -> str: ...
+
+
+class NullObservability:
+    """测试用的完整空实现 — 静默丢弃所有可观测性操作。
+
+    继承 NullInstrumentation 的错误记录能力，并添加日志、指标、关联 ID 的空实现。
+    """
+
+    def record(
+        self,
+        category: str,
+        message: str,
+        exc: Exception | None = None,
+        module: str = "",
+    ) -> None:
+        pass
+
+    @property
+    def total(self) -> int:
+        return 0
+
+    def log(self, level: str, message: str, **kwargs: Any) -> None:
+        pass
+
+    def metric(
+        self,
+        name: str,
+        value: float = 1.0,
+        labels: dict[str, str] | None = None,
+        metric_type: str = "counter",
+    ) -> None:
+        pass
+
+    def set_correlation(self, cid: str | None = None) -> str:
+        return ""
+
+
 class ISessionAuthenticator(ABC):
     """会话认证抽象 — Cookie 加载、UID 解析。"""
 

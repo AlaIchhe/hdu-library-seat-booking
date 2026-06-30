@@ -5,9 +5,9 @@
 含智能重试、定时执行、预览模式。
 """
 
-import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 
 from core import constants as C
@@ -19,6 +19,7 @@ from core.exceptions import (
 )
 from core.infrastructure.protocols import ILibraryGateway
 from core.metrics import ErrorCategory, error_tracker
+from core.observability import get_logger, metrics_collector, set_correlation_id
 
 from ..models.plan import BookingPlan
 from .base import (
@@ -28,7 +29,27 @@ from .base import (
     ITaskCancellation,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 计时器辅助
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _timer(operation: str, labels: dict[str, str] | None = None) -> Iterator[None]:
+    """自动记录操作耗时的上下文管理器。"""
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        elapsed = time.monotonic() - start
+        metrics_collector.observe_latency(
+            "booking_operation_duration_seconds",
+            elapsed,
+            labels={"operation": operation, **(labels or {})},
+        )
 
 
 # ======================================================================
@@ -142,15 +163,29 @@ class BookingOrchestrator:
           4. 策略选择座位
           5. 提交预约
         """
+        logger.info(
+            "booking_attempt_started",
+            plan=plan.to_plan_code(),
+            room_type=plan.room_type,
+            floor_id=plan.floor_id,
+            seat_num=plan.seat_num,
+        )
+
         # 1. 查找房间类型匹配的房间
         try:
-            room_types = self.client.get_room_types()
+            with _timer("get_room_types"):
+                room_types = self.client.get_room_types()
         except HduLibraryError as exc:
             error_tracker.record(
                 ErrorCategory.ROOM_QUERY,
                 f"房间类型查询失败 [{plan.to_plan_code()}]: {exc}",
                 exc,
                 module=__name__,
+            )
+            logger.warning(
+                "room_type_query_failed",
+                plan=plan.to_plan_code(),
+                error=str(exc),
             )
             return BookingResult(plan, False, f"房间类型查询失败: {exc}")
 
@@ -169,19 +204,26 @@ class BookingOrchestrator:
                     f"无可用房间类型 [{plan.to_plan_code()}]",
                     module=__name__,
                 )
+                logger.warning("no_room_types_available", plan=plan.to_plan_code())
                 return BookingResult(plan, False, "无可用房间类型")
             matched = [room_types[0]]
 
         # 2. 查询房间详情
         room_item = matched[0]
         try:
-            detail = self.client.get_room_detail(room_item["query"])
+            with _timer("get_room_detail"):
+                detail = self.client.get_room_detail(room_item["query"])
         except HduLibraryError as exc:
             error_tracker.record(
                 ErrorCategory.ROOM_QUERY,
                 f"房间详情查询失败 [{plan.to_plan_code()}]: {exc}",
                 exc,
                 module=__name__,
+            )
+            logger.warning(
+                "room_detail_query_failed",
+                plan=plan.to_plan_code(),
+                error=str(exc),
             )
             return BookingResult(plan, False, f"房间详情查询失败: {exc}")
 
@@ -193,7 +235,8 @@ class BookingOrchestrator:
 
         # 4. 查询座位布局
         try:
-            floors = self.client.get_seat_map(cat_id, con_id, begin_time, plan.duration_hours)
+            with _timer("get_seat_map"):
+                floors = self.client.get_seat_map(cat_id, con_id, begin_time, plan.duration_hours)
         except HduLibraryError as exc:
             error_tracker.record(
                 ErrorCategory.SEAT_QUERY,
@@ -201,16 +244,27 @@ class BookingOrchestrator:
                 exc,
                 module=__name__,
             )
+            logger.warning(
+                "seat_map_query_failed",
+                plan=plan.to_plan_code(),
+                error=str(exc),
+            )
             return BookingResult(plan, False, f"座位地图查询失败: {exc}")
 
         # 5. 策略选择座位
-        seat_result = self.strategy.select_seat(self.client, plan, floors=floors)
+        with _timer("select_seat"):
+            seat_result = self.strategy.select_seat(self.client, plan, floors=floors)
         if seat_result.is_failure:
             reason = seat_result.error
             error_tracker.record(
                 ErrorCategory.STRATEGY,
                 f"策略未能选出可用座位 [{plan.to_plan_code()}]: {reason}",
                 module=__name__,
+            )
+            logger.warning(
+                "seat_selection_failed",
+                plan=plan.to_plan_code(),
+                reason=reason,
             )
             return BookingResult(plan, False, f"策略未能选出可用座位: {reason}")
 
@@ -224,21 +278,29 @@ class BookingOrchestrator:
                 plan.duration_hours,
                 dry_run=True,
             )
+            logger.info("dry_run_completed", plan=plan.to_plan_code(), seat_id=seat_id)
             return BookingResult(plan, True, f"[预览模式] 参数已就绪: {result}", result)
 
         try:
-            result = self.client.book_seat(
-                seat_id,
-                self.client.uid,
-                begin_time,
-                plan.duration_hours,
-            )
+            with _timer("book_seat"):
+                result = self.client.book_seat(
+                    seat_id,
+                    self.client.uid,
+                    begin_time,
+                    plan.duration_hours,
+                )
         except HduLibraryError as exc:
             error_tracker.record(
                 ErrorCategory.BOOKING,
                 f"预约请求失败 [{plan.to_plan_code()}]: {exc}",
                 exc,
                 module=__name__,
+            )
+            logger.error(
+                "booking_request_failed",
+                plan=plan.to_plan_code(),
+                seat_id=seat_id,
+                error=str(exc),
             )
             return BookingResult(plan, False, f"预约请求失败: {exc}")
 
@@ -249,7 +311,23 @@ class BookingOrchestrator:
                 f"预约被服务器拒绝 [{plan.to_plan_code()}]: {msg}",
                 module=__name__,
             )
+            logger.warning(
+                "booking_rejected_by_server",
+                plan=plan.to_plan_code(),
+                message=msg,
+            )
             return BookingResult(plan, False, msg, result)
+
+        logger.info(
+            "booking_succeeded",
+            plan=plan.to_plan_code(),
+            seat_id=seat_id,
+            message=booking_message(result),
+        )
+        metrics_collector.increment(
+            "booking_requests_total",
+            labels={"status": "success"},
+        )
         return BookingResult(plan, True, booking_message(result), result)
 
     # ------------------------------------------------------------------
@@ -274,67 +352,112 @@ class BookingOrchestrator:
         trials = max_trials if max_trials is not None else self.max_trials
         results: list[BookingResult] = []
 
-        for plan in plans:
-            if self.cancellation.is_cancelled():
-                results.append(BookingResult(plan, False, "用户取消"))
-                break
+        # 为本次预约流程设置关联 ID，所有日志自动携带
+        with set_correlation_id():
+            logger.info(
+                "booking_flow_started",
+                plan_count=len(plans),
+                max_trials=trials,
+            )
+            metrics_collector.increment("booking_flows_started_total")
 
-            for attempt in range(1, trials + 1):
+            for plan in plans:
                 if self.cancellation.is_cancelled():
+                    logger.info("booking_cancelled_by_user", plan=plan.to_plan_code())
                     results.append(BookingResult(plan, False, "用户取消"))
                     break
 
-                logger.info(
-                    "尝试方案 [%s] 第 %d/%d 次",
-                    plan.to_plan_code(),
-                    attempt,
-                    trials,
-                )
-                result = self.book_single(plan)
-                results.append(result)
+                for attempt in range(1, trials + 1):
+                    if self.cancellation.is_cancelled():
+                        logger.info(
+                            "booking_cancelled_by_user_mid_attempt",
+                            plan=plan.to_plan_code(),
+                            attempt=attempt,
+                        )
+                        results.append(BookingResult(plan, False, "用户取消"))
+                        break
 
-                if on_progress:
-                    on_progress(result)
-
-                if result.success:
-                    self.notifier.send(
-                        "预约成功！",
-                        self._format_success_body(result),
-                        success=True,
+                    logger.info(
+                        "booking_attempt",
+                        plan=plan.to_plan_code(),
+                        attempt=attempt,
+                        max_trials=trials,
                     )
-                    return results
+                    result = self.book_single(plan)
+                    results.append(result)
 
-                # 智能重试决策
-                if result.raw_response:
-                    decision = self.retry_decider(result.raw_response)
-                    logger.info("重试决策: %s — %s", decision.action, decision.reason)
+                    if on_progress:
+                        on_progress(result)
 
-                    if decision.action == RetryDecision.STOP:
+                    if result.success:
                         self.notifier.send(
-                            "预约中止",
-                            f"服务器返回: {decision.reason}\n请检查系统是否需要更新。",
-                            success=False,
+                            "预约成功！",
+                            self._format_success_body(result),
+                            success=True,
+                        )
+                        logger.info(
+                            "booking_flow_completed",
+                            attempts=len(results),
+                            plan=plan.to_plan_code(),
                         )
                         return results
 
-                    if decision.action == RetryDecision.SKIP:
-                        logger.info("跳过方案 %s，尝试下一个", plan.to_plan_code())
-                        break  # 跳出重试循环，进入下一个 plan
+                    # 智能重试决策
+                    if result.raw_response:
+                        decision = self.retry_decider(result.raw_response)
+                        logger.info(
+                            "retry_decision",
+                            action=decision.action,
+                            reason=decision.reason,
+                            plan=plan.to_plan_code(),
+                        )
 
-                # 重试延迟
-                if attempt < trials:
-                    time.sleep(self.retry_delay)
+                        if decision.action == RetryDecision.STOP:
+                            self.notifier.send(
+                                "预约中止",
+                                f"服务器返回: {decision.reason}\n请检查系统是否需要更新。",
+                                success=False,
+                            )
+                            logger.error(
+                                "booking_flow_aborted",
+                                reason=decision.reason,
+                                plan=plan.to_plan_code(),
+                            )
+                            return results
 
-        # 全部失败
-        if results:
-            last = results[-1]
-            self.notifier.send(
-                "预约失败",
-                f"已尝试 {len(plans)} 个方案，共 {len(results)} 次请求，均未成功。\n"
-                f"最后错误: {last.message}",
-                success=False,
-            )
-        return results
+                        if decision.action == RetryDecision.SKIP:
+                            logger.info(
+                                "plan_skipped",
+                                plan=plan.to_plan_code(),
+                                reason=decision.reason,
+                            )
+                            break  # 跳出重试循环，进入下一个 plan
+
+                    # 重试延迟
+                    if attempt < trials:
+                        time.sleep(self.retry_delay)
+
+            # 全部失败
+            if results:
+                last = results[-1]
+                self.notifier.send(
+                    "预约失败",
+                    f"已尝试 {len(plans)} 个方案，共 {len(results)} 次请求，均未成功。\n"
+                    f"最后错误: {last.message}",
+                    success=False,
+                )
+                logger.warning(
+                    "booking_flow_failed",
+                    plans_attempted=len(plans),
+                    total_attempts=len(results),
+                    last_error=last.message,
+                )
+                metrics_collector.increment(
+                    "booking_requests_total",
+                    labels={"status": "failed"},
+                )
+
+            return results
 
     # ------------------------------------------------------------------
     # 定时预约
@@ -370,13 +493,14 @@ class BookingOrchestrator:
 
         if wait_seconds > 0:
             logger.info(
-                "定时预约：目标 %s，等待 %.0f 秒",
-                execute_at.isoformat(),
-                wait_seconds,
+                "scheduled_booking_waiting",
+                execute_at=execute_at.isoformat(),
+                wait_seconds=round(wait_seconds),
             )
 
         while wait_seconds > 0:
             if self.cancellation.is_cancelled():
+                logger.info("scheduled_booking_cancelled", plan_count=len(plans))
                 raise BookingCancelled("用户取消定时预约")
 
             if on_countdown:
@@ -386,7 +510,7 @@ class BookingOrchestrator:
             time.sleep(sleep_for)
             wait_seconds -= sleep_for
 
-        logger.info("到达预约时间，开始执行")
+        logger.info("scheduled_booking_executing", plan_count=len(plans))
         return self.book_all(plans, on_progress=on_progress)
 
     # ------------------------------------------------------------------

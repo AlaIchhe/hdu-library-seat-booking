@@ -114,7 +114,7 @@ class TestLoginContract:
             assert "DATA" in resp, "成功时缺少 DATA 字段"
             data = resp["DATA"]
             assert "uid" in data, "DATA 中缺少 uid"
-            assert isinstance(data["uid"], (int, str)), "uid 应为 int 或 str"
+            assert isinstance(data["uid"], int | str), "uid 应为 int 或 str"
             assert "user_info" in data or "name" in data, "DATA 中缺少 user_info 或 name"
 
     def test_login_bad_password_contract(self):
@@ -187,8 +187,8 @@ class TestSeatMapContract:
         sc = first_room_detail["space_category"]
         assert "category_id" in sc, "缺少 category_id"
         assert "content_id" in sc, "缺少 content_id"
-        assert isinstance(sc["category_id"], (int, str))
-        assert isinstance(sc["content_id"], (int, str))
+        assert isinstance(sc["category_id"], int | str)
+        assert isinstance(sc["content_id"], int | str)
 
     def test_seat_map_structure(self, authed_client, first_room_detail):
         """座位地图响应必须包含楼层 seats 数据结构。"""

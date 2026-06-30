@@ -4,14 +4,14 @@
 提供多渠道通知能力：控制台输出、日志文件、微信推送（可选）。
 """
 
-import logging
 from datetime import datetime
 
 from core.metrics import ErrorCategory, error_tracker
+from core.observability import get_logger
 
 from .base import INotificationChannel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ======================================================================
@@ -86,7 +86,7 @@ class WeChatNotification(INotificationChannel):
                 "微信推送失败",
                 module=__name__,
             )
-            logger.warning("微信推送失败，已忽略", exc_info=True)
+            logger.warning("wechat_push_failed", error="notification_ignored")
 
 
 # ======================================================================
@@ -111,4 +111,7 @@ class NotificationAggregator(INotificationChannel):
                     f"通知通道 {type(ch).__name__} 发送失败",
                     module=__name__,
                 )
-                logger.warning(f"通知通道 {type(ch).__name__} 发送失败", exc_info=True)
+                logger.warning(
+                    "notification_channel_failed",
+                    channel=type(ch).__name__,
+                )

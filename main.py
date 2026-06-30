@@ -18,6 +18,8 @@ load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 def main() -> None:
     """主入口：默认启动终端 UI，带 --cli 进入命令行模式。"""
+    _configure_observability()
+
     if "--cli" in sys.argv:
         sys.argv.remove("--cli")
         from app.ui.cli import main as cli_main
@@ -25,6 +27,15 @@ def main() -> None:
         sys.exit(cli_main())  # type: ignore[func-returns-value]
     else:
         _run_terminal()
+
+
+def _configure_observability() -> None:
+    """初始化可观测性（结构化日志）。"""
+    from core import get_settings
+    from core.observability import configure_from_config
+
+    settings = get_settings()
+    configure_from_config(settings.logging_cfg)
 
 
 def _run_terminal() -> None:
