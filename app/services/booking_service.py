@@ -50,7 +50,7 @@ class BookingResult:
         self.raw_response = raw_response
         self.timestamp = datetime.now().isoformat()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         status = "✓ 成功" if self.success else "✗ 失败"
         return f"BookingResult({status}, {self.plan.to_plan_code()}, {self.message})"
 
@@ -214,9 +214,10 @@ class BookingOrchestrator:
             return BookingResult(plan, False, "策略未能选出可用座位")
 
         # 6. 提交预约
+        seat_id = str(seat["id"])
         if self.dry_run:
             result = self.client.book_seat(
-                seat["id"],
+                seat_id,
                 self.client.uid,
                 begin_time,
                 plan.duration_hours,
@@ -226,7 +227,7 @@ class BookingOrchestrator:
 
         try:
             result = self.client.book_seat(
-                seat["id"],
+                seat_id,
                 self.client.uid,
                 begin_time,
                 plan.duration_hours,

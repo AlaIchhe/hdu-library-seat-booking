@@ -31,6 +31,7 @@ app/services/auth_service.py 不调用本模块的任何功能。
 
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import urlparse
 
 from . import exceptions as E
@@ -44,7 +45,7 @@ class PasswordAuthClient:
     此方式无效，仅作为接口参考保留。
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config: dict | None = None) -> None:
         from .api import HduLibraryClient
 
         self._client = HduLibraryClient(config=config)
@@ -107,7 +108,7 @@ class PasswordAuthClient:
 
 
 def sso_browser_login(
-    client,
+    client: Any,
     username: str,
     password: str,
     org_id: str = "104",

@@ -1,35 +1,35 @@
+from __future__ import annotations
+
+from collections.abc import Callable
 from time import sleep
+from typing import TYPE_CHECKING, Any
 
 from .domain.seat_lookup import get_seat_lookup_time
 from .metrics import ErrorCategory, error_tracker
 
+if TYPE_CHECKING:
+    from .api import HduLibraryClient
+
 
 class RoomCache:
-    def __init__(self, client, delay=2):
+    def __init__(self, client: HduLibraryClient, delay: float = 2) -> None:
         """初始化房间缓存。
 
-        参数
-        ----------
-        client : HduLibraryClient
-            已初始化的 API 客户端实例。
-        delay : int or float
-            批量查询时每次请求之间的间隔秒数。默认 2。
+        Args:
+            client: 已初始化的 API 客户端实例。
+            delay: 批量查询时每次请求之间的间隔秒数。
         """
         self.client = client
         self.delay = delay
-        self.rooms = None
+        self.rooms: dict[str, dict[str, Any]] | None = None
 
     # ------------------------------------------------------------------
     # 批量查询
     # ------------------------------------------------------------------
-    def query_rooms(self):
+    def query_rooms(self) -> dict[str, dict[str, Any]]:
         """获取所有房间类型及其详情，构建 rooms 缓存字典。
 
-        使用 HduLibraryClient.get_room_types() 和 get_room_detail()，
-
-        返回
-        -------
-        dict
+        Returns:
             {房间名: 房间详情 dict} 的映射。
         """
         rooms = {}
@@ -38,10 +38,17 @@ class RoomCache:
             sleep(self.delay)
         return rooms
 
-    def query_seats(self, rooms=None, cancel_flag=None, re_query_on_error=False):
+    def query_seats(
+        self,
+        rooms: dict[str, dict[str, Any]] | None = None,
+        cancel_flag: Callable[[], bool] | None = None,
+        re_query_on_error: bool = False,
+    ) -> dict[str, dict[str, Any]] | None:
 
         if rooms is None:
             rooms = self.rooms
+        if rooms is None:
+            return None
 
         lookup_time = get_seat_lookup_time()
 
@@ -50,8 +57,9 @@ class RoomCache:
                 return None
 
             detail = rooms[room_name]
-            cat_id = detail["space_category"]["category_id"]
-            con_id = detail["space_category"]["content_id"]
+            space = detail["space_category"]
+            cat_id = str(space["category_id"])
+            con_id = str(space["content_id"])
 
             try:
                 floors = self.client.get_seat_map(cat_id, con_id, lookup_time, 1, 1)
@@ -78,7 +86,11 @@ class RoomCache:
 
         return rooms
 
-    def update_rooms(self, cancel_flag=None, re_query_on_error=False):
+    def update_rooms(
+        self,
+        cancel_flag: Callable[[], bool] | None = None,
+        re_query_on_error: bool = False,
+    ) -> list[str]:
         """完整刷新房间缓存（房间详情 + 座位布局）。
 
         返回
@@ -99,19 +111,35 @@ class RoomCache:
     # ------------------------------------------------------------------
     # 信息访问
     # ------------------------------------------------------------------
-    def get_floor_names(self, room_name):
+    def get_floor_names(self, room_name: str) -> list[str]:
         """获取指定房间的所有楼层名称列表。"""
-        return list(self.rooms[room_name]["floors"].keys())
+        if not self.rooms or room_name not in self.rooms:
+            return []
+        room = self.rooms[room_name]
+        if "floors" not in room:
+            return []
+        return list(room["floors"].keys())
 
-    def get_seats(self, room_name, floor_name):
+    def get_seats(self, room_name: str, floor_name: str) -> list[dict[str, Any]]:
         """获取指定房间和楼层的座位列表。"""
-        return self.rooms[room_name]["floors"][floor_name]["seats"]
+        if not self.rooms or room_name not in self.rooms:
+            return []
+        room = self.rooms[room_name]
+        if "floors" not in room or floor_name not in room["floors"]:
+            return []
+        return room["floors"][floor_name].get("seats", [])  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
     # 计划构建
     # ------------------------------------------------------------------
     @staticmethod
-    def build_plan(room_name, begin_time, duration, seats_info, seat_bookers):
+    def build_plan(
+        room_name: str,
+        begin_time: object,
+        duration: int,
+        seats_info: Any,
+        seat_bookers: Any,
+    ) -> dict[str, Any]:
 
         return {
             "roomName": room_name,

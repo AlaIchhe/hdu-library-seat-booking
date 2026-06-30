@@ -6,6 +6,7 @@
 """
 
 from datetime import timedelta
+from typing import Any
 
 from core.domain.time import now_cst
 from core.infrastructure.protocols import ILibraryGateway
@@ -44,11 +45,11 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     # 配置管理
     # ------------------------------------------------------------------
-    def set_weekday(self, weekday: Weekday, **config) -> None:
+    def set_weekday(self, weekday: Weekday, **config: object) -> None:
         """为指定星期设置配置。"""
         self._configs[weekday] = config
 
-    def get_weekday(self, weekday: Weekday) -> dict | None:
+    def get_weekday(self, weekday: Weekday) -> dict[str, Any] | None:
         """获取指定星期的配置，未配置返回 None。"""
         return self._configs.get(weekday)
 
@@ -62,9 +63,11 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     # ISeatSelectionStrategy 实现
     # ------------------------------------------------------------------
-    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(
+        self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
+    ) -> dict[str, Any] | None:
         """根据 plan 中的 weekday 选择对应座位。"""
-        floors = kwargs.get("floors", [])
+        floors: list[dict[str, Any]] = kwargs.get("floors", [])  # type: ignore[assignment]
 
         # 确定目标星期
         weekday = plan.weekday
@@ -83,7 +86,7 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
 
         try:
             _, seat = gateway.find_seat_in_floors(floors, floor_id, seat_num)
-            return seat  # type: ignore[no-any-return]
+            return seat
         except Exception:
             return None
 

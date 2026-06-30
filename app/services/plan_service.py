@@ -63,7 +63,7 @@ class PlanService:
                 count += 1
         return count
 
-    def update(self, plan_id: str, **kwargs) -> BookingPlan | None:
+    def update(self, plan_id: str, **kwargs: object) -> BookingPlan | None:
         """更新方案字段（部分更新）。"""
         plan = self._repo.get(plan_id)
         if not plan:

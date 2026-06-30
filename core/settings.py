@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -151,12 +151,12 @@ class Settings(BaseSettings):
         return cls(**_flatten_yaml(data))
 
     @classmethod
-    def from_cli(cls, **overrides) -> Settings:
+    def from_cli(cls, **overrides: Any) -> Settings:
         """从 CLI 参数创建，覆盖任何已存在的值。"""
         clean = {k: v for k, v in overrides.items() if v is not None}
         return cls(**clean)
 
-    def with_cli_overrides(self, **overrides) -> Settings:
+    def with_cli_overrides(self, **overrides: Any) -> Settings:
         """返回新 Settings，应用 CLI 覆盖。
 
         支持双下划线分隔的嵌套 key，如 ``booking__max_trials=20``

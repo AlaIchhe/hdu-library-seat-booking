@@ -188,11 +188,11 @@ class ErrorTracker:
     # ------------------------------------------------------------------
     # 回调
     # ------------------------------------------------------------------
-    def on_error(self, callback):
+    def on_error(self, callback: object) -> None:
         """注册错误回调。回调签名：fn(category: str, message: str, record: ErrorRecord)。"""
         self._callbacks.append(callback)
 
-    def remove_callback(self, callback) -> bool:
+    def remove_callback(self, callback: object) -> bool:
         """移除已注册的回调，返回 True 表示成功。"""
         try:
             self._callbacks.remove(callback)

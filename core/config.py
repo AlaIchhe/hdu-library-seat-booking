@@ -11,22 +11,18 @@ import yaml
 from .metrics import ErrorCategory, error_tracker
 
 
-def load_yaml_config(path):
+def load_yaml_config(path: str | Path) -> dict:
     """从 YAML 文件加载配置。
 
-    参数
-    ----------
-    path : str or Path
-        配置文件路径。
+    Args:
+        path: 配置文件路径。
 
-    返回
-    -------
-    dict
+    Returns:
         解析后的配置字典。
     """
     try:
         with Path(path).open("r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f)  # type: ignore[no-any-return]
     except FileNotFoundError:
         error_tracker.record(
             ErrorCategory.CONFIG,
@@ -44,8 +40,12 @@ def load_yaml_config(path):
         raise
 
 
-def save_yaml_config(path, data):
+def save_yaml_config(path: str | Path, data: dict) -> None:
     """将配置字典写入 YAML 文件。
+
+    Args:
+        path: 目标文件路径。
+        data: 要保存的配置字典。
 
     参数
     ----------
@@ -67,7 +67,7 @@ def save_yaml_config(path, data):
         raise
 
 
-def create_default_config(path, template_yaml):
+def create_default_config(path: str | Path, template_yaml: str) -> dict:
     """利用 YAML 模板字符串创建默认配置文件。
 
     参数
@@ -88,4 +88,4 @@ def create_default_config(path, template_yaml):
         )
         raise
     save_yaml_config(path, config)
-    return config
+    return config  # type: ignore[no-any-return]

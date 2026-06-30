@@ -359,7 +359,7 @@ class TerminalUI:
         print("\n开始预约...")
         self.cancel_flag = False
 
-        def on_progress(result: BookingResult):
+        def on_progress(result: BookingResult) -> None:
             icon = "✓" if result.success else "✗"
             print(f"  {icon} [{result.plan.to_plan_code()}] {result.message}")
 
@@ -408,11 +408,11 @@ class TerminalUI:
 
         print("\n等待中... (按 Ctrl+C 取消)\n")
 
-        def on_countdown(remaining: int):
+        def on_countdown(remaining: int) -> None:
             sys.stdout.write(f"\r⏳ 倒计时: {format_countdown(remaining)}  ")
             sys.stdout.flush()
 
-        def on_progress(result: BookingResult):
+        def on_progress(result: BookingResult) -> None:
             icon = "✓" if result.success else "✗"
             print(f"\n  {icon} [{result.plan.to_plan_code()}] {result.message}")
 
@@ -461,7 +461,7 @@ class TerminalUI:
     # ------------------------------------------------------------------
     # 0 — 退出
     # ------------------------------------------------------------------
-    def _handle_exit(self):
+    def _handle_exit(self) -> bool:
         self.cancel_flag = True
         return False
 

@@ -1,6 +1,6 @@
 """时间领域工具 — 纯函数，零基础设施依赖。"""
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 
 def now_cst() -> datetime:
@@ -57,12 +57,17 @@ def parse_plan_code(plan_text: str) -> dict:
         raise ValueError("plan 格式应为 roomType:floorId:seatNum:startHour:durationHours") from exc
 
 
-def parse_execute_time(execute_at_str: str):
+def parse_execute_time(execute_at_str: str) -> time | None:
     """解析执行时间字符串。
 
-    参数
-    ----------
-    execute_at_str : str
+    Args:
+        execute_at_str: 格式为 HH:MM 或 HH:MM:SS。
+
+    Returns:
+        解析后的 time 对象，空输入返回 None。
+
+    Raises:
+        ValueError: 格式无效时。
         格式为 HH:MM 或 HH:MM:SS。
 
     返回

@@ -172,15 +172,6 @@ ignore_missing_imports = true
 show_error_codes = true
 pretty = true
 color_output = true
-
-[[tool.mypy.overrides]]
-module = [
-    "core.constants",
-    "core.exceptions",
-    "app.models.plan",
-    "app.services.plan_repository",
-    "app.services.notification_service",
-]
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]

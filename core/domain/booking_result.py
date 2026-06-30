@@ -43,7 +43,7 @@ def _get_data(result: dict) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def booking_failed(result) -> bool:
+def booking_failed(result: object) -> bool:
     """判断预约是否失败。"""
     if not isinstance(result, dict):
         return True
@@ -53,7 +53,7 @@ def booking_failed(result) -> bool:
     return status == "fail" or code in {"paramerror", "error", "fail", "failed"}
 
 
-def booking_message(result) -> str:
+def booking_message(result: object) -> str:
     """提取预约结果的文本消息。"""
     if not isinstance(result, dict):
         return "预约接口返回失败"

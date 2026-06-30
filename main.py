@@ -16,18 +16,18 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 
-def main():
+def main() -> None:
     """主入口：默认启动终端 UI，带 --cli 进入命令行模式。"""
     if "--cli" in sys.argv:
         sys.argv.remove("--cli")
         from app.ui.cli import main as cli_main
 
-        sys.exit(cli_main())
+        sys.exit(cli_main())  # type: ignore[func-returns-value]
     else:
         _run_terminal()
 
 
-def _run_terminal():
+def _run_terminal() -> None:
     """启动终端交互界面。"""
     from app.services import (
         AuthService,

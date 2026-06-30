@@ -12,6 +12,7 @@ HduLibraryClient — 慧图图书馆预约平台统一 API 客户端。
 
 import json
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote
 
 import requests
@@ -51,7 +52,12 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 初始化
     # ------------------------------------------------------------------
-    def __init__(self, config=None, timeout=None, settings=None):
+    def __init__(
+        self,
+        config: dict | str | Path | None = None,
+        timeout: int | None = None,
+        settings: Any = None,
+    ) -> None:
         """初始化客户端。
 
         参数
@@ -78,7 +84,9 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         self._settings = settings
         self.config = settings.model_dump()  # 向后兼容
         # 向后兼容: config 中的 timeout 优先于显式参数
-        config_timeout = ((config or {}).get("request") or {}).get("timeout")
+        config_timeout = None
+        if isinstance(config, dict):
+            config_timeout = ((config or {}).get("request") or {}).get("timeout")
         self.timeout = config_timeout or timeout or settings.http.timeout
         self.urls = settings.urls
         self._uid = settings.auth.uid or ""
@@ -92,11 +100,11 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         self.session.verify = settings.http.verify
 
         # 禁用 SSL 警告
-        requests.packages.urllib3.disable_warnings()
+        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined]
 
     @property
     def uid(self) -> str:
-        return self._uid  # type: ignore[no-any-return]
+        return self._uid
 
     @uid.setter
     def uid(self, value: str) -> None:
@@ -104,7 +112,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
 
     @property
     def name(self) -> str:
-        return self._name  # type: ignore[no-any-return]
+        return self._name
 
     @name.setter
     def name(self, value: str) -> None:
@@ -113,7 +121,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # HTTP 请求
     # ------------------------------------------------------------------
-    def _request(self, method, url, data=None):
+    def _request(self, method: str, url: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         """统一 HTTP 请求封装，含错误处理。"""
         try:
             if method == "GET":
@@ -137,7 +145,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             )
             raise E.HduLibraryError(f"请求失败：HTTP {resp.status_code} {url}")
         try:
-            return resp.json()
+            return resp.json()  # type: ignore[no-any-return]
         except Exception as exc:
             error_tracker.record(
                 ErrorCategory.JSON_PARSE,
@@ -150,7 +158,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 认证（Cookie）
     # ------------------------------------------------------------------
-    def set_cookie_header(self, cookie_string):
+    def set_cookie_header(self, cookie_string: str) -> None:
         """从原始 Cookie 请求头字符串加载 Cookie。
 
         参数
@@ -177,7 +185,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             )
             raise E.CookieError("Cookie 字符串中没有有效的键值对")
 
-    def set_cookies_from_json_file(self, json_path):
+    def set_cookies_from_json_file(self, json_path: str | Path) -> None:
         """从 Netscape 格式的 JSON Cookie 文件加载。
 
         参数
@@ -255,7 +263,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 解析用户 UID
     # ------------------------------------------------------------------
-    def resolve_uid(self):
+    def resolve_uid(self) -> str:
         """当 UID 未知时，从 API 响应中自动探测。
 
         依次尝试 user_base_info / user_center 端点，递归搜索
@@ -289,7 +297,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 房间查询
     # ------------------------------------------------------------------
-    def get_room_types(self):
+    def get_room_types(self) -> list[dict[str, Any]]:
         """获取所有可用的房间类型列表。
 
         返回
@@ -307,7 +315,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             room_items.append({"name": item["name"], "query": query})
         return room_items
 
-    def get_room_detail(self, room_query_string):
+    def get_room_detail(self, room_query_string: str) -> dict[str, Any]:
         """查询单个房间的详细信息（分类 ID、时间范围等）。
 
         参数
@@ -331,9 +339,16 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
                 module=__name__,
             )
             raise E.RoomQueryError("房间信息为空")
-        return detail
+        return detail  # type: ignore[no-any-return]
 
-    def get_seat_map(self, category_id, content_id, lookup_time, duration_hours=1, num=1):
+    def get_seat_map(
+        self,
+        category_id: str,
+        content_id: str,
+        lookup_time: Any,
+        duration_hours: int = 1,
+        num: int = 1,
+    ) -> list[dict[str, Any]]:
         """根据分类和参考时间查询座位布局（楼层 + 座位 POI）。
 
         参数
@@ -364,7 +379,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         }
         resp = self._request("POST", url, payload)
         try:
-            return resp["allContent"]["children"][2]["children"]["children"]
+            return resp["allContent"]["children"][2]["children"]["children"]  # type: ignore[no-any-return]
         except Exception as exc:
             error_tracker.record(
                 ErrorCategory.SEAT_QUERY,
@@ -374,7 +389,9 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
             )
             raise E.SeatQueryError(f"座位分布解析失败：{exc}") from exc
 
-    def find_seat_in_floors(self, floors, floor_id, seat_num):
+    def find_seat_in_floors(
+        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """在楼层列表中定位指定楼层和座位号。
 
         参数
@@ -432,7 +449,15 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 预约
     # ------------------------------------------------------------------
-    def book_seat(self, seat_id, uid, begin_time, duration_hours, is_recommend=1, dry_run=False):
+    def book_seat(
+        self,
+        seat_id: str,
+        uid: str,
+        begin_time: Any,
+        duration_hours: int,
+        is_recommend: int = 1,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
 
         begin_ts = int(begin_time.timestamp())
         duration_sec = int(duration_hours * 3600)

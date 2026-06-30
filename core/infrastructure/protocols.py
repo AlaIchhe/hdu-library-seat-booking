@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class Instrumentation(Protocol):
@@ -73,31 +73,33 @@ class ILibraryGateway(ABC):
     def uid(self) -> str: ...
 
     @abstractmethod
-    def get_room_types(self) -> list[dict]: ...
+    def get_room_types(self) -> list[dict[str, Any]]: ...
 
     @abstractmethod
-    def get_room_detail(self, room_query_string: str) -> dict: ...
+    def get_room_detail(self, room_query_string: str) -> dict[str, Any]: ...
 
     @abstractmethod
     def get_seat_map(
         self,
         category_id: str,
         content_id: str,
-        lookup_time,
+        lookup_time: Any,
         duration_hours: int = 1,
         num: int = 1,
-    ) -> list[dict]: ...
+    ) -> list[dict[str, Any]]: ...
 
     @abstractmethod
-    def find_seat_in_floors(self, floors: list, floor_id, seat_num) -> tuple: ...
+    def find_seat_in_floors(
+        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
+    ) -> tuple[dict[str, Any], dict[str, Any]]: ...
 
     @abstractmethod
     def book_seat(
         self,
         seat_id: str,
         uid: str,
-        begin_time,
+        begin_time: Any,
         duration_hours: int,
         is_recommend: int = 1,
         dry_run: bool = False,
-    ) -> dict: ...
+    ) -> dict[str, Any]: ...

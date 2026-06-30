@@ -16,13 +16,13 @@ from datetime import datetime
 
 
 def generate_api_token(
-    seat_id,
-    uid,
-    begin_time,
-    duration,
-    is_recommend=1,
-    api_time=None,
-):
+    seat_id: str,
+    uid: str,
+    begin_time: int,
+    duration: int,
+    is_recommend: int = 1,
+    api_time: int | None = None,
+) -> tuple[str, int]:
 
     if api_time is None:
         api_time = int(datetime.now().timestamp())

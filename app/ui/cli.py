@@ -14,6 +14,7 @@ from core.metrics import ErrorCategory, error_tracker
 
 from ..models.plan import BookingPlan
 from ..services.auth_service import AuthService
+from ..services.base import ISeatSelectionStrategy
 from ..services.booking_service import (
     BookingOrchestrator,
     BookingResult,
@@ -115,7 +116,7 @@ class CLI:
         orchestrator.max_trials = args.max_trials
         orchestrator.retry_delay = args.retry_delay
 
-        def on_progress(result: BookingResult):
+        def on_progress(result: BookingResult) -> None:
             icon = "OK" if result.success else "FAIL"
             print(f"[{icon}] {result.plan.to_plan_code()} → {result.message}")
 
@@ -214,7 +215,7 @@ class CLI:
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
-    def _authenticate(self, args, auth: AuthService) -> None:
+    def _authenticate(self, args: argparse.Namespace, auth: AuthService) -> None:
         """认证失败时抛出异常而非返回 bool。"""
         if args.cookie:
             auth.authenticate_with_cookie(args.cookie)
@@ -225,16 +226,16 @@ class CLI:
         print("未提供认证信息（--cookie / --cookie-file）")
         sys.exit(1)
 
-    def _build_strategy(self, args):
+    def _build_strategy(self, args: argparse.Namespace) -> ISeatSelectionStrategy:
         """根据参数构建座位选择策略。"""
         strategy_name = getattr(args, "strategy", "fixed")
         if strategy_name == "random":
             return RandomRangeStrategy(seat_range=(1, 500))
         if strategy_name == "weekday":
-            return WeekdayRotationStrategy()
+            return WeekdayRotationStrategy(weekday_configs={})
         return FixedSeatStrategy()
 
-    def _resolve_plans(self, args) -> list[BookingPlan]:
+    def _resolve_plans(self, args: argparse.Namespace) -> list[BookingPlan]:
         plans = []
 
         # 从文件加载
@@ -261,7 +262,7 @@ class CLI:
 
         return plans
 
-    def _build_notifier(self, args) -> NotificationAggregator:
+    def _build_notifier(self, args: argparse.Namespace) -> NotificationAggregator:
         agg = NotificationAggregator()
         agg.add_channel(ConsoleNotification(use_colors=True))
         agg.add_channel(LogFileNotification(args.log_file))
@@ -273,7 +274,7 @@ class CLI:
 # ======================================================================
 # 入口
 # ======================================================================
-def main():
+def main() -> None:
     """CLI 主入口。"""
     cli = CLI()
     sys.exit(cli.run())

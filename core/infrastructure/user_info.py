@@ -7,7 +7,7 @@ def find_user_info(data: dict) -> dict | None:
     """递归搜索 JSON 中与用户信息匹配的字段。"""
     candidates: list[dict] = []
 
-    def walk(obj, hint: str = "") -> None:
+    def walk(obj: object, hint: str = "") -> None:
         if isinstance(obj, dict):
             if "name" in obj and "value" in obj and isinstance(obj.get("value"), str):
                 walk(obj["value"], str(obj.get("name") or hint))

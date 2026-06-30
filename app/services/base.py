@@ -51,21 +51,17 @@ class ISeatSelectionStrategy(ABC):
     """座位选择策略接口。"""
 
     @abstractmethod
-    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(
+        self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs: object
+    ) -> dict[str, object] | None:
         """从楼层中选出目标座位 POI 对象。
 
-        Parameters
-        ----------
-        gateway : ILibraryGateway
-            API 网关接口。
-        plan : BookingPlan
-            预约方案。
-        **kwargs
-            额外参数（如随机种子、用户偏好等）。
+        Args:
+            gateway: API 网关接口。
+            plan: 预约方案。
+            **kwargs: 额外参数（如随机种子、用户偏好等）。
 
-        Returns
-        -------
-        dict or None
+        Returns:
             选中的座位 POI 对象，None 表示无法选出。
         """
         ...

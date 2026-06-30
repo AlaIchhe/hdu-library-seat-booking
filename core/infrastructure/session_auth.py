@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .. import constants as C
 from .. import exceptions as E
@@ -19,9 +19,9 @@ class SessionAuthenticator(ISessionAuthenticator):
 
     def __init__(
         self,
-        transport,
+        transport: Any,
         instrumentation: Instrumentation | None = None,
-    ):
+    ) -> None:
         self._transport = transport
         self._instrumentation = instrumentation
         self.uid: str = ""

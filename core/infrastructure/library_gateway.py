@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 from .. import constants as C
@@ -23,10 +23,10 @@ class HduLibraryGateway(ILibraryGateway):
 
     def __init__(
         self,
-        transport,
-        settings=None,
+        transport: Any,
+        settings: Any = None,
         instrumentation: Instrumentation | None = None,
-    ):
+    ) -> None:
         self._transport = transport
         self._settings = settings
         self._instrumentation = instrumentation
@@ -46,7 +46,7 @@ class HduLibraryGateway(ILibraryGateway):
         return dict(C.URLS)
 
     @property
-    def session(self):
+    def session(self) -> Any:
         return self._transport.session
 
     # ------------------------------------------------------------------
@@ -79,10 +79,10 @@ class HduLibraryGateway(ILibraryGateway):
         self,
         category_id: str,
         content_id: str,
-        lookup_time,
+        lookup_time: Any,
         duration_hours: int = 1,
         num: int = 1,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """根据分类和参考时间查询座位布局。"""
         url = self.urls.get("query_seats") or C.URLS["query_seats"]
         payload = {
@@ -99,7 +99,9 @@ class HduLibraryGateway(ILibraryGateway):
             self._record("SEAT_QUERY", f"座位分布解析失败：{exc}", exc)
             raise E.SeatQueryError(f"座位分布解析失败：{exc}") from exc
 
-    def find_seat_in_floors(self, floors: list, floor_id, seat_num) -> tuple:
+    def find_seat_in_floors(
+        self, floors: list[dict[str, Any]], floor_id: str | int, seat_num: str | int
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """在楼层列表中定位指定楼层和座位号。"""
         floor_id = str(floor_id)
         seat_num = str(seat_num)
@@ -143,11 +145,11 @@ class HduLibraryGateway(ILibraryGateway):
         self,
         seat_id: str,
         uid: str,
-        begin_time,
+        begin_time: Any,
         duration_hours: int,
         is_recommend: int = 1,
         dry_run: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """提交预约请求。"""
         begin_ts = int(begin_time.timestamp())
         duration_sec = int(duration_hours * 3600)
