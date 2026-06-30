@@ -26,6 +26,15 @@ from .exceptions import (
     RoomQueryError,
     SeatQueryError,
 )
+from .infrastructure.http_transport import HttpTransport
+from .infrastructure.library_gateway import HduLibraryGateway
+from .infrastructure.protocols import (
+    ILibraryGateway,
+    Instrumentation,
+    ISessionAuthenticator,
+    NullInstrumentation,
+)
+from .infrastructure.session_auth import SessionAuthenticator
 from .metrics import ErrorCategory, ErrorRecord, ErrorTracker, error_tracker
 from .room_cache import RoomCache
 
@@ -52,10 +61,17 @@ __all__ = [
     "ErrorTracker",
     "HduLibraryClient",
     "HduLibraryError",
+    "HduLibraryGateway",
+    "HttpTransport",
+    "ILibraryGateway",
+    "ISessionAuthenticator",
+    "Instrumentation",
     "LoginError",
+    "NullInstrumentation",
     "RoomCache",
     "RoomQueryError",
     "SeatQueryError",
+    "SessionAuthenticator",
     "create_default_config",
     "error_tracker",
     "generate_api_token",

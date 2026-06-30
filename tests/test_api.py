@@ -13,7 +13,6 @@ from core.api import HduLibraryClient
 from core.exceptions import (
     CookieError,
     HduLibraryError,
-    LoginError,
     RoomQueryError,
     SeatQueryError,
 )
@@ -157,42 +156,6 @@ class TestHduLibraryClientCookie:
                 client.set_cookies_from_json_file(path)
         finally:
             os.unlink(path)
-
-
-class TestHduLibraryClientLogin:
-    def test_login_success(self):
-        client = HduLibraryClient()
-        mock_resp = {
-            "CODE": "ok",
-            "DATA": {
-                "uid": "12345",
-                "user_info": {"name": "测试用户"},
-            },
-        }
-        with patch.object(client, "_request", return_value=mock_resp):
-            result = client.login("user", "pass")
-            assert result is True
-            assert client.uid == "12345"
-            assert client.name == "测试用户"
-
-    def test_login_failure(self):
-        client = HduLibraryClient()
-        mock_resp = {"CODE": "error", "MESSAGE": "密码错误"}
-        with patch.object(client, "_request", return_value=mock_resp):
-            result = client.login("user", "wrong")
-            assert result is False
-
-    def test_login_missing_credentials(self):
-        client = HduLibraryClient()
-        with pytest.raises(LoginError, match="登录名或密码"):
-            client.login(None, None)
-
-    def test_login_from_config(self):
-        config = {"user_info": {"login_name": "cfguser", "password": "cfgpass"}}
-        client = HduLibraryClient(config=config)
-        mock_resp = {"CODE": "ok", "DATA": {"uid": "999"}}
-        with patch.object(client, "_request", return_value=mock_resp):
-            assert client.login() is True
 
 
 class TestHduLibraryClientResolveUid:
@@ -343,23 +306,3 @@ class TestHduLibraryClientBookSeat:
             result = client.book_seat("296", "12345", begin, 9)
             assert result == mock_resp
             assert "Api-Token" in client.session.headers
-
-
-class TestHduLibraryClientFindUserInfo:
-    def test_user_info_from_dict(self):
-        client = HduLibraryClient()
-        result = client._user_info_from_dict({"uid": "123", "name": "张三"}, hint="currentUser")
-        assert result is not None
-        assert result["uid"] == "123"
-        assert result["name"] == "张三"
-
-    def test_no_match_returns_none(self):
-        client = HduLibraryClient()
-        result = client._user_info_from_dict({"foo": "bar"})
-        assert result is None
-
-    def test_score_boosts_for_relevant_hints(self):
-        client = HduLibraryClient()
-        r1 = client._user_info_from_dict({"uid": "1"}, hint="something")
-        r2 = client._user_info_from_dict({"uid": "2"}, hint="currentLogin")
-        assert r2["score"] > (r1["score"] if r1 else 0)

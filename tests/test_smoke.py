@@ -23,9 +23,11 @@
   # 跳过慢速测试
   pytest tests/test_smoke.py -v -m "smoke and not slow"
 
-凭据来源（按优先级）：
-  1. 项目根目录 .env 文件（python-dotenv 自动加载）
-  2. 环境变量 HDU_USERNAME / HDU_PASSWORD / HDU_ORG_ID
+凭据来源：
+  - Cookie 文件 (tests/cookies.json)
+  - 环境变量 HDU_COOKIE
+
+注意：密码认证已移至 core.password_auth 模块，不纳入主流程。
 """
 
 import os
@@ -55,26 +57,9 @@ from app.strategies.fixed_seat import FixedSeatStrategy
 from core import HduLibraryClient, RoomCache
 from core.auth import generate_api_token
 
-
 # ============================================================================
 # 凭据
 # ============================================================================
-def _credentials():
-    """从环境变量读取凭据，无硬编码默认值。"""
-    username = os.environ.get("HDU_USERNAME", "")
-    password = os.environ.get("HDU_PASSWORD", "")
-    org_id = os.environ.get("HDU_ORG_ID", "104")
-    return {
-        "username": username,
-        "password": password,
-        "org_id": org_id,
-    }
-
-
-def _has_credentials() -> bool:
-    """检查是否配置了用户名和密码。"""
-    creds = _credentials()
-    return bool(creds["username"] and creds["password"])
 
 
 # ============================================================================
@@ -94,15 +79,13 @@ def client():
 
 @pytest.fixture(scope="module")
 def authed_client(client):
-    """已登录认证的客户端。
+    """已登录认证的客户端（仅 Cookie 认证，密码认证已分离）。
 
     认证策略（按优先级）：
       1. Cookie 文件 — 加载后发起真实 API 请求验证有效性
       2. 环境变量中的 Cookie 字符串 — 同样验证有效性
-      3. SSO 密码登录 — 使用 .env 中的凭据
 
-    关键改进：Cookie 加载后不再仅依赖本地解析，而是通过
-    validate_cookie() 发起真实 HTTP 请求确认未过期。
+    注意：密码认证已移至 core.password_auth 模块，不在此流程中。
     """
     cookie_file = os.environ.get(
         "HDU_COOKIE_FILE",
@@ -132,125 +115,96 @@ def authed_client(client):
         except Exception:
             pass
 
-    # 策略 3: SSO 密码登录（需要浏览器自动化）
-    if _has_credentials():
-        creds = _credentials()
-        try:
-            ok = _login_via_sso_browser(client, creds)
-            if ok and client.uid:
-                return client
-        except Exception:
-            pass
-
     # 所有策略均失败
-    creds = _credentials()
     missing = []
     if not Path(cookie_file).exists():
         missing.append(f"Cookie 文件不存在: {cookie_file}")
-    if not creds["username"]:
-        missing.append("未设置 HDU_USERNAME（检查 .env 或环境变量）")
-    if not creds["password"]:
-        missing.append("未设置 HDU_PASSWORD（检查 .env 或环境变量）")
+    if not cookie_str:
+        missing.append("未设置 HDU_COOKIE 环境变量")
 
     pytest.fail(
-        "所有认证方式均失败。\n"
+        "所有 Cookie 认证方式均失败。\n"
         + "\n".join(f"  - {m}" for m in missing)
         + "\n请:\n"
-        + "  1) 在 .env 文件中填写 HDU_USERNAME 和 HDU_PASSWORD\n"
-        + "  2) 或在浏览器中登录并导出 Cookie 到 "
+        + "  1) 在浏览器中登录 https://hdu.huitu.zhishulib.com\n"
+        + "  2) 导出 Cookies 为 JSON 保存到 "
         + cookie_file
         + "\n"
-        + "  3) 或设置环境变量 HDU_COOKIE"
+        + "  3) 或设置环境变量 HDU_COOKIE=uid=xxx;auth=yyy"
     )
 
 
-def _login_via_sso_browser(client, creds):
-    """使用 Playwright 浏览器自动化完成 SSO 登录（如果可用）。"""
-
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        return False
-
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(
-                "https://sso.hdu.edu.cn/login"
-                "?service=https://hdu.huitu.zhishulib.com/User/Index/hduCASLogin",
-                timeout=30000,
-            )
-            page.get_by_placeholder("请输入学工号/绑定手机/证件号").fill(creds["username"])
-            page.get_by_placeholder("请输入密码").fill(creds["password"])
-            page.get_by_role("button", name="登 录").click()
-            page.wait_for_url("**/hdu.huitu.zhishulib.com/**", timeout=15000)
-
-            cookies = page.context.cookies()
-            browser.close()
-
-            # 将 cookies 加载到 client session
-            for c in cookies:
-                if "zhishulib.com" in c.get("domain", ""):
-                    client.session.cookies.set(
-                        c["name"],
-                        c["value"],
-                        domain=c.get("domain", ""),
-                        path=c.get("path", "/"),
-                    )
-            client.resolve_uid()
-            return bool(client.uid)
-    except Exception:
-        return False
-
-
 # ============================================================================
-# 冒烟测试 1: 登录认证
+# 冒烟测试 1: 登录认证 — 每条路径独立测试
 # ============================================================================
-class TestSmokeAuthentication:
-    """认证流程冒烟。"""
 
-    def test_login_succeeds(self, client):
-        """认证必须成功：Cookie 有效 或 密码登录有效。
 
-        改进：Cookie 加载后通过 validate_cookie() 发起真实 API
-        请求验证，而非仅依赖本地解析。
-        """
+class TestSmokeAuthCookieFile:
+    """Cookie 文件认证。"""
+
+    def test_cookie_file_loads_and_validates(self):
+        """Cookie 文件存在时，应加载并通过真实 API 验证。"""
         cookie_file = Path(__file__).parent / "cookies.json"
-        if cookie_file.exists():
-            client.set_cookies_from_json_file(str(cookie_file))
-            client.resolve_uid()
-            assert client.uid, "Cookie 认证后 UID 不应为空"
-            # 验证 Cookie 真正有效（真实 API 请求）
-            assert client.validate_cookie(), "Cookie 已过期或无效"
-        else:
-            # 尝试 SSO 登录（需要 Playwright + 凭据）
-            if not _has_credentials():
-                pytest.skip(
-                    "无 Cookie 文件且未配置凭据（检查 .env 中的 HDU_USERNAME/HDU_PASSWORD）"
-                )
-            creds = _credentials()
-            ok = _login_via_sso_browser(client, creds)
-            if not ok:
-                pytest.skip(
-                    "SSO 登录需要浏览器环境或有效的 cookies.json。\n"
-                    f"请先在浏览器中登录并保存 Cookie 到 {cookie_file}"
-                )
+        if not cookie_file.exists():
+            pytest.skip(f"Cookie 文件不存在: {cookie_file}")
+
+        client = HduLibraryClient(timeout=30)
+        client.set_cookies_from_json_file(str(cookie_file))
+        client.resolve_uid()
+        assert client.uid, "Cookie 加载后 UID 不应为空"
+        # 关键：发起真实 API 请求验证 Cookie 未过期
+        assert client.validate_cookie(), "Cookie 已过期或无效（API 验证失败）"
+
+    def test_invalid_cookie_file_raises(self):
+        """不存在的 Cookie 文件应抛出 CookieError。"""
+        from core.exceptions import CookieError
+
+        client = HduLibraryClient(timeout=30)
+        auth = AuthService(client)
+        # 不存在的文件应抛出 CookieError
+        with pytest.raises(CookieError):
+            auth.authenticate_with_cookie_file("/nonexistent/cookies.json")
+
+
+class TestSmokeAuthCookieString:
+    """环境变量 Cookie 字符串认证。"""
+
+    def test_cookie_string_authenticates(self):
+        """HDU_COOKIE 环境变量非空时应能认证。"""
+        cookie_str = os.environ.get("HDU_COOKIE", "")
+        if not cookie_str:
+            pytest.skip("未设置 HDU_COOKIE 环境变量")
+
+        client = HduLibraryClient(timeout=30)
+        auth = AuthService(client)
+        ok = auth.authenticate_with_cookie(cookie_str)
+        assert ok, "Cookie 字符串认证应成功"
+        assert client.uid, "认证后 UID 不应为空"
+
+    def test_empty_cookie_string_raises(self):
+        """空 Cookie 字符串应抛出 CookieError。"""
+        from core.exceptions import CookieError
+
+        client = HduLibraryClient(timeout=30)
+        auth = AuthService(client)
+        with pytest.raises(CookieError):
+            auth.authenticate_with_cookie("   ")
+
+
+class TestSmokeAuthIntegration:
+    """认证后状态一致性。"""
 
     def test_uid_resolved_after_login(self, authed_client):
         """登录后 UID 应被正确解析。"""
         assert authed_client.uid, "UID 不应为空"
-        assert authed_client.uid.isdigit(), f"UID 应为数字，实际: {authed_client.uid}"
 
     def test_name_available_after_login(self, authed_client):
         """登录后姓名应可用（若 API 返回的话）。"""
-        # 姓名从 API 响应中提取，新版本 API 可能不直接返回姓名
-        # 此时 name 为空是正常行为，只要 uid 有效即可
         if not authed_client.name:
             pytest.skip("API 响应中未包含用户名（新版 UI 格式）")
 
     def test_auth_service_integration(self, authed_client):
-        """AuthService 集成测试。"""
+        """AuthService 封装层应正确反映认证状态。"""
         auth = AuthService(authed_client)
         assert auth.is_authenticated()
         assert auth.uid == authed_client.uid

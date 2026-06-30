@@ -133,11 +133,11 @@ class TestBookingOrchestrator:
         return BookingPlan(**defaults)
 
     def make_orchestrator(self, client=None, **kwargs):
-        client = client or MagicMock()
+        gateway = client or MagicMock()
         strategy = kwargs.pop("strategy", FixedSeatStrategy())
         notifier = kwargs.pop("notifier", ConsoleNotification(use_colors=False))
         return BookingOrchestrator(
-            client=client,
+            gateway=gateway,
             strategy=strategy,
             notifier=notifier,
             **kwargs,

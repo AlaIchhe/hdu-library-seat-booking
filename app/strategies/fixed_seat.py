@@ -50,7 +50,7 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
         detail = client.get_room_detail(room_types[0]["query"])
         cat_id = detail["space_category"]["category_id"]
         con_id = detail["space_category"]["content_id"]
-        from core.utils import build_begin_time
+        from core.domain.time import build_begin_time
 
         begin = build_begin_time(plan.start_hour, plan.book_days)
         return client.get_seat_map(cat_id, con_id, begin, plan.duration_hours)

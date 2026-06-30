@@ -8,7 +8,7 @@
 from datetime import timedelta
 from typing import Any
 
-from core.utils import now_cst
+from core.domain.time import now_cst
 
 from ..models.plan import BookingPlan, Weekday
 from ..services.base import ISeatSelectionStrategy

@@ -10,18 +10,15 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
-from core import HduLibraryClient
 from core import constants as C
+from core.domain.booking_result import booking_failed, booking_message
+from core.domain.time import build_begin_time
 from core.exceptions import (
     BookingCancelled,
     HduLibraryError,
 )
+from core.infrastructure.protocols import ILibraryGateway
 from core.metrics import ErrorCategory, error_tracker
-from core.utils import (
-    booking_failed,
-    booking_message,
-    build_begin_time,
-)
 
 from ..models.plan import BookingPlan
 from .base import (
@@ -115,13 +112,13 @@ class BookingOrchestrator:
 
     def __init__(
         self,
-        client: HduLibraryClient,
+        gateway: ILibraryGateway,
         strategy: ISeatSelectionStrategy,
         notifier: INotificationChannel,
         retry_decider: Callable[[dict], RetryDecision] = default_retry_decider,
         cancellation: ITaskCancellation | None = None,
     ):
-        self.client = client
+        self.client = gateway
         self.strategy = strategy
         self.notifier = notifier
         self.retry_decider = retry_decider

@@ -140,7 +140,7 @@ class BookingPlan:
     @classmethod
     def from_plan_code(cls, code: str) -> "BookingPlan":
         """从编码字符串反序列化。"""
-        from core.utils import parse_plan_code
+        from core.domain.time import parse_plan_code
 
         parsed = parse_plan_code(code)
         return cls(

@@ -9,6 +9,12 @@ HDU 图书馆座位预约系统 — 终端交互入口。
 """
 
 import sys
+from pathlib import Path
+
+import dotenv
+
+# 加载项目根目录的 .env（在 import app 之前执行）
+dotenv.load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 
 def main():

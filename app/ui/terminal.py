@@ -136,10 +136,12 @@ class TerminalUI:
             cookie = input("粘贴 Cookie 字符串: ").strip()
             self.auth.authenticate_with_cookie(cookie)
         elif choice == "p":
-            self.auth.authenticate_with_password(interactive=True)
+            print(
+                "密码认证已停用。请使用 Cookie 认证 [C]。\n"
+                "如需密码认证，请手动调用 core.password_auth 模块。"
+            )
         else:
-            print("无效选择，使用密码登录")
-            self.auth.authenticate_with_password(interactive=True)
+            print("无效选择，请重新运行并选择 [C]")
 
         if not self.auth.is_authenticated():
             print("认证失败，部分功能可能不可用")

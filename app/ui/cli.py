@@ -8,16 +8,10 @@
 import argparse
 import os
 import sys
-from pathlib import Path
-
-import dotenv
 
 from core import HduLibraryClient
+from core.domain.time import build_begin_time, build_execute_datetime
 from core.metrics import ErrorCategory, error_tracker
-from core.utils import (
-    build_begin_time,
-    build_execute_datetime,
-)
 
 from ..models.plan import BookingPlan
 from ..services.auth_service import AuthService
@@ -34,9 +28,6 @@ from ..services.notification_service import (
 )
 from ..services.plan_service import PlanService
 from ..strategies.fixed_seat import FixedSeatStrategy
-
-# 加载项目根目录的 .env（不覆盖已有环境变量）
-dotenv.load_dotenv(Path(__file__).resolve().parent.parent.parent.parent / ".env", override=False)
 
 
 class CLI:
@@ -151,12 +142,12 @@ class CLI:
             epilog="""
 示例:
   hdu-book --cookie "uid=xxx;auth=yyy" --plan "1:1558:296:13:9"
-  hdu-book --user 21012345 --passwd mypass --plan "1:1558:130:8:9"
+  hdu-book --cookie-file cookies.json --plan "1:1558:296:13:9"
   hdu-book --cookie "..." --plan-file plans.yaml --dry-run
   hdu-book --cookie "..." --plan "..." --at "19:59:30" --max-trials 30
 
 环境变量:
-  HDU_COOKIE, HDU_USERNAME, HDU_PASSWORD, HDU_ORG_ID
+  HDU_COOKIE, HDU_COOKIE_FILE
   HDU_PLAN, HDU_PLAN_FILE, HDU_AT, HDU_MAX_TRIALS
             """,
         )
@@ -165,9 +156,6 @@ class CLI:
         auth_group = p.add_argument_group("认证")
         auth_group.add_argument("--cookie", help="Cookie 字符串")
         auth_group.add_argument("--cookie-file", help="Netscape JSON Cookie 文件路径")
-        auth_group.add_argument("--user", dest="username", help="学号/登录名")
-        auth_group.add_argument("--passwd", dest="password", help="密码")
-        auth_group.add_argument("--org-id", default=None, help="机构 ID (默认: 104)")
 
         # 方案
         plan_group = p.add_argument_group("预约方案")
@@ -215,9 +203,7 @@ class CLI:
         """将环境变量合并到 args。"""
         env_map = {
             "cookie": "HDU_COOKIE",
-            "username": "HDU_USERNAME",
-            "password": "HDU_PASSWORD",
-            "org_id": "HDU_ORG_ID",
+            "cookie_file": "HDU_COOKIE_FILE",
             "execute_at": "HDU_AT",
         }
         for attr, env_var in env_map.items():
@@ -245,16 +231,14 @@ class CLI:
             return auth.authenticate_with_cookie(args.cookie)
         if args.cookie_file:
             return auth.authenticate_with_cookie_file(args.cookie_file)
+        # 密码认证已移至 core.password_auth，不纳入主流程
         if args.username:
-            return auth.authenticate_with_password(
-                username=args.username,
-                password=args.password or "",
-                org_id=args.org_id,
+            print(
+                "密码认证已停用。请使用 --cookie 或 --cookie-file 进行认证。\n"
+                "如需密码认证，请手动调用 core.password_auth 模块。"
             )
-        # 尝试从 config 登录
-        if auth.client.config.get("user_info", {}).get("login_name"):
-            return auth.authenticate_with_password()
-        print("未提供认证信息（--cookie / --user --passwd）")
+            return False
+        print("未提供认证信息（--cookie / --cookie-file）")
         return False
 
     def _resolve_plans(self, args) -> list[BookingPlan]:

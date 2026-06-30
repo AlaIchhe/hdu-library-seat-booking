@@ -3,9 +3,11 @@ HduLibraryClient — 慧图图书馆预约平台统一 API 客户端。
 
 封装所有 HTTP 交互：
   - Session 初始化（Headers、SSL、Params）
-  - Cookie / 密码两种认证方式
+  - Cookie 认证（主流程）+ Cookie 有效性验证
   - 房间类型 → 房间详情 → 座位地图 → 预约提交 完整链路
   - Api-Token 签名（内部调用 auth 模块）
+
+注意：密码认证已移至 core.password_auth 模块，不纳入主流程。
 """
 
 import json
@@ -17,10 +19,12 @@ import requests
 from . import constants as C
 from . import exceptions as E
 from .auth import generate_api_token
+from .infrastructure.protocols import ILibraryGateway, ISessionAuthenticator
+from .infrastructure.user_info import find_user_info
 from .metrics import ErrorCategory, error_tracker
 
 
-class HduLibraryClient:
+class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     """慧图图书馆平台 HTTP 客户端。
 
     使用方法
@@ -61,8 +65,8 @@ class HduLibraryClient:
             (self.config.get("request") or {}).get("timeout") or timeout or C.DEFAULT_TIMEOUT
         )
         self.urls = self.config.get("urls") or dict(C.URLS)
-        self.uid = str((self.config.get("user_info") or {}).get("uid") or "")
-        self.name = str((self.config.get("user_info") or {}).get("name") or "")
+        self._uid = str((self.config.get("user_info") or {}).get("uid") or "")
+        self._name = str((self.config.get("user_info") or {}).get("name") or "")
 
         # 创建 requests.Session 并设置默认 headers / params
         session_cfg = self.config.get("session") or {}
@@ -74,6 +78,22 @@ class HduLibraryClient:
 
         # 禁用 SSL 警告
         requests.packages.urllib3.disable_warnings()
+
+    @property
+    def uid(self) -> str:
+        return self._uid  # type: ignore[no-any-return]
+
+    @uid.setter
+    def uid(self, value: str) -> None:
+        self._uid = str(value)
+
+    @property
+    def name(self) -> str:
+        return self._name  # type: ignore[no-any-return]
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = str(value)
 
     # ------------------------------------------------------------------
     # HTTP 请求
@@ -214,61 +234,8 @@ class HduLibraryClient:
             data = self._request("GET", url)
         except E.HduLibraryError:
             return False
-        candidate = self._find_user_info(data)
+        candidate = find_user_info(data)
         return bool(candidate and candidate.get("uid"))
-
-    # ------------------------------------------------------------------
-    # 认证（用户名密码登录）
-    # ------------------------------------------------------------------
-    def login(self, username=None, password=None, org_id=None):
-        """通过用户名密码登录慧图平台。
-
-        参数
-        ----------
-        username : str, optional
-            学号 / 登录名。若为 None 则从 config 读取。
-        password : str, optional
-            密码。若为 None 则从 config 读取。
-        org_id : str, optional
-            机构 ID。默认 "104"（HDU）。
-
-        返回
-        -------
-        bool
-            登录是否成功。
-        """
-        user_info = self.config.get("user_info") or {}
-        uname = username or user_info.get("login_name")
-        pwd = password or user_info.get("password")
-        oid = org_id or user_info.get("org_id") or C.DEFAULT_ORG_ID
-
-        if not uname or not pwd:
-            error_tracker.record(
-                ErrorCategory.AUTH,
-                "登录名或密码未提供",
-                module=__name__,
-            )
-            raise E.LoginError("登录名或密码未提供")
-
-        url = self.urls.get("login") or C.URLS["login"]
-        resp = self._request(
-            "POST",
-            url,
-            {
-                "login_name": uname,
-                "password": pwd,
-                "org_id": oid,
-            },
-        )
-
-        if resp.get("CODE") == "ok":
-            data = resp.get("DATA", resp)
-            self.uid = str(data.get("uid", ""))
-            # user_info 嵌套在 DATA 下
-            ui = data.get("user_info") or {}
-            self.name = str(ui.get("name") or data.get("name") or "")
-            return True
-        return False
 
     # ------------------------------------------------------------------
     # 解析用户 UID
@@ -290,12 +257,12 @@ class HduLibraryClient:
                 data = self._request("GET", url)
             except E.HduLibraryError:
                 continue
-            candidate = self._find_user_info(data)
+            candidate = find_user_info(data)
             if candidate and candidate.get("uid"):
-                self.uid = str(candidate["uid"])
-                if candidate.get("name") and not self.name:
-                    self.name = str(candidate["name"])
-                return self.uid
+                self._uid = str(candidate["uid"])
+                if candidate.get("name") and not self._name:
+                    self._name = str(candidate["name"])
+                return self._uid
 
         error_tracker.record(
             ErrorCategory.AUTH,
@@ -303,98 +270,6 @@ class HduLibraryClient:
             module=__name__,
         )
         raise E.HduLibraryError("未能识别用户 uid。请在配置文件 user_info.uid 中填写慧图内部 uid。")
-
-    def _find_user_info(self, data):
-        """递归搜索 JSON 中与用户信息匹配的字段。"""
-        candidates = []
-
-        def walk(obj, hint=""):
-            if isinstance(obj, dict):
-                if "name" in obj and "value" in obj and isinstance(obj.get("value"), str):
-                    walk(obj["value"], str(obj.get("name") or hint))
-                c = self._user_info_from_dict(obj, hint)
-                if c:
-                    candidates.append(c)
-                for k, v in obj.items():
-                    walk(v, f"{hint}.{k}" if hint else str(k))
-            elif isinstance(obj, list):
-                for item in obj:
-                    walk(item, hint)
-            elif isinstance(obj, str):
-                val = obj.strip()
-                if val and val[0] in "[{":
-                    try:
-                        walk(json.loads(val), hint)
-                    except Exception:
-                        pass
-
-        walk(data)
-        if not candidates:
-            return None
-        candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
-        return candidates[0]
-
-    def _user_info_from_dict(self, data, hint=""):
-        """从字典中提取用户 UID 和姓名候选。"""
-        id_keys = ("uid", "user_id", "userId", "booker", "id", "textRight")
-        name_keys = (
-            "name",
-            "real_name",
-            "realName",
-            "bookerName",
-            "username",
-            "login_name",
-            "nickname",
-            "textRight",
-        )
-        title_keys = ("titleCenter", "titleLeft", "title", "titleRight")
-
-        uid = None
-        name = None
-        title_context = ""
-
-        # 收集标题文本（如 "身份认证"、"手机号" 等标签）
-        for k in title_keys:
-            v = data.get(k)
-            if v and isinstance(v, str):
-                title_context += v
-
-        for k in id_keys:
-            v = data.get(k)
-            if v is not None and str(v).isdigit():
-                uid = str(v)
-                break
-        for k in name_keys:
-            v = data.get(k)
-            if v and not str(v).isdigit():
-                name = str(v)
-                break
-
-        score = 1 if name else 0
-        hint_lower = (hint + title_context).lower()
-        for kw in (
-            "current",
-            "user",
-            "login",
-            "lab4",
-            "身份",
-            "认证",
-            "姓名",
-            "证号",
-            "书证",
-            "学号",
-            "学工",
-            "一卡通",
-            "证件",
-        ):
-            if kw in hint_lower:
-                score += 2
-        # 如果 title 包含"手机"则扣分（手机号不是 UID）
-        if "手机" in title_context:
-            score -= 3
-        if uid and (score > 0 or name):
-            return {"uid": uid, "name": name, "score": max(score, 0)}
-        return None
 
     # ------------------------------------------------------------------
     # 房间查询

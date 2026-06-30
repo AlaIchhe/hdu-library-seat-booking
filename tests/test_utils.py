@@ -27,7 +27,7 @@ class TestNowCst:
 
 class TestBuildBeginTime:
     def test_today(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 10, 30, 0)
             result = build_begin_time(13, book_days=0)
             assert result.hour == 13
@@ -35,14 +35,14 @@ class TestBuildBeginTime:
             assert result.day == 30
 
     def test_tomorrow(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 10, 0, 0)
             result = build_begin_time(8, book_days=1)
             assert result.day == 1  # 7月1日
             assert result.hour == 8
 
     def test_day_after_tomorrow(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 10, 0, 0)
             result = build_begin_time(9, book_days=2)
             assert result.hour == 9
@@ -103,7 +103,7 @@ class TestParseExecuteTime:
 class TestBuildExecuteDatetime:
     def test_future_time_same_day(self):
         """目标时间在现在之后，应返回今天。"""
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 10, 0, 0)
             result = build_execute_datetime("19:58")
             assert result.day == 30
@@ -112,7 +112,7 @@ class TestBuildExecuteDatetime:
 
     def test_past_time_next_day(self):
         """目标时间已过，应返回明天。"""
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 22, 0, 0)
             result = build_execute_datetime("19:58")
             assert result.day == 1  # 7月1日
@@ -186,21 +186,21 @@ class TestBookingMessage:
 
 class TestGetSeatLookupTime:
     def test_late_night_returns_next_morning(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 22, 30, 0)
             result = get_seat_lookup_time()
             assert result.day == 1  # 次日
             assert result.hour == 8
 
     def test_early_morning_returns_same_morning(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 6, 30, 5, 0, 0)
             result = get_seat_lookup_time()
             assert result.day == 30
             assert result.hour == 8
 
     def test_daytime_returns_now(self):
-        with patch("core.utils.now_cst") as mock_now:
+        with patch("core.domain.time.now_cst") as mock_now:
             expected = datetime(2026, 6, 30, 14, 30, 0)
             mock_now.return_value = expected
             result = get_seat_lookup_time()
