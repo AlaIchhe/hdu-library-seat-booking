@@ -93,8 +93,8 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
 
     def describe(self, plan: BookingPlan) -> str:
         weekday = plan.weekday
-        label = Weekday.label(weekday) if weekday else "?"
-        cfg = self._configs.get(weekday, self._default) if weekday else self._default
+        label = Weekday.label(weekday) if weekday is not None else "?"
+        cfg = self._configs.get(weekday, self._default) if weekday is not None else self._default
         return (
             f"按星期切换 [{label}]: 楼层 {cfg.get('floor_id', '?')}, {cfg.get('seat_num', '?')} 座"
         )

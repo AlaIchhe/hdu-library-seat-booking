@@ -10,9 +10,11 @@ import pytest
 from app.models.plan import BookingPlan, PlanStatus, Weekday
 from app.services.booking_service import BookingOrchestrator
 from app.services.notification_service import ConsoleNotification
+from app.services.plan_repository import YamlPlanRepository
+from app.services.plan_service import PlanService
 from app.strategies.fixed_seat import FixedSeatStrategy
 from core import HduLibraryClient
-from core.infrastructure.protocols import NullInstrumentation
+from core.infrastructure.protocols import ILibraryGateway, NullInstrumentation
 
 # ============================================================================
 # 领域对象 fixtures
@@ -60,6 +62,12 @@ def mock_client() -> MagicMock:
 
 
 @pytest.fixture
+def mock_gateway() -> MagicMock:
+    """创建一个符合 ILibraryGateway 协议的 mock 网关。"""
+    return MagicMock(spec=ILibraryGateway)
+
+
+@pytest.fixture
 def mock_transport() -> MagicMock:
     """创建一个 mock HttpTransport。"""
     transport = MagicMock()
@@ -76,6 +84,37 @@ def null_instrumentation() -> NullInstrumentation:
 
 
 # ============================================================================
+# 楼层数据 fixtures — 供策略测试复用
+# ============================================================================
+
+
+@pytest.fixture
+def sample_floors() -> list[dict]:
+    """创建标准的双层楼层数据。"""
+    return [
+        {
+            "roomName": "3楼",
+            "seatMap": {
+                "info": {"id": "1558"},
+                "POIs": [
+                    {"title": "296", "id": "seat_296"},
+                    {"title": "297", "id": "seat_297"},
+                ],
+            },
+        },
+        {
+            "roomName": "4楼",
+            "seatMap": {
+                "info": {"id": "2000"},
+                "POIs": [
+                    {"title": "100", "id": "seat_100"},
+                ],
+            },
+        },
+    ]
+
+
+# ============================================================================
 # 编排器 fixtures
 # ============================================================================
 
@@ -88,6 +127,77 @@ def mock_orchestrator(mock_client) -> BookingOrchestrator:
         strategy=FixedSeatStrategy(),
         notifier=ConsoleNotification(use_colors=False),
     )
+
+
+# ============================================================================
+# PlanService fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def inmemory_repo() -> YamlPlanRepository:
+    """创建一个内存中的 YAML 仓库（使用临时文件）。"""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as tmp:
+        tmp_path = tmp.name
+    return YamlPlanRepository(tmp_path)
+
+
+@pytest.fixture
+def plan_service(inmemory_repo: YamlPlanRepository) -> PlanService:
+    """创建一个绑定到内存仓库的 PlanService。"""
+    return PlanService(inmemory_repo)
+
+
+@pytest.fixture
+def populated_service(plan_service: PlanService) -> PlanService:
+    """创建一个已填充多个方案的 PlanService（供查询/批量操作测试使用）。"""
+    plans = [
+        BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+            booker_name="用户甲",
+            weekday=Weekday.MONDAY,
+            status=PlanStatus.ENABLED,
+            tags=["安静"],
+        ),
+        BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="297",
+            start_hour=8,
+            duration_hours=4,
+            booker_name="用户乙",
+            weekday=Weekday.TUESDAY,
+            status=PlanStatus.ENABLED,
+        ),
+        BookingPlan(
+            room_type=2,
+            floor_id=2000,
+            seat_num="100",
+            start_hour=10,
+            duration_hours=2,
+            booker_name="用户丙",
+            status=PlanStatus.DISABLED,
+        ),
+        BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="298",
+            start_hour=18,
+            duration_hours=3,
+            booker_name="通用用户",
+            weekday=None,  # 适用于所有天
+            status=PlanStatus.ENABLED,
+        ),
+    ]
+    for p in plans:
+        plan_service.add(p)
+    return plan_service
 
 
 # ============================================================================

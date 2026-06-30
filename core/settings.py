@@ -149,13 +149,20 @@ class Settings(BaseSettings):
         if not p.exists():
             return cls()
         data = _yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        return cls(**_flatten_yaml(data))
+        # _flatten_yaml 产生 "auth__uid" 格式的 flat key；
+        # pydantic-settings 的 env_nested_delimiter 仅适用于环境变量，
+        # 不适用于构造函数 kwargs，因此需要还原为嵌套 dict。
+        return cls(**_unflatten_keys(_flatten_yaml(data)))
 
     @classmethod
     def from_cli(cls, **overrides: Any) -> Settings:
-        """从 CLI 参数创建，覆盖任何已存在的值。"""
+        """从 CLI 参数创建，覆盖任何已存在的值。
+
+        支持双下划线分隔的嵌套 key，如 ``auth__uid="xxx"``
+        等价于 ``{"auth": {"uid": "xxx"}}``。
+        """
         clean = {k: v for k, v in overrides.items() if v is not None}
-        return cls(**clean)
+        return cls(**_unflatten_keys(clean))
 
     def with_cli_overrides(self, **overrides: Any) -> Settings:
         """返回新 Settings，应用 CLI 覆盖。
