@@ -6,6 +6,7 @@
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from core.infrastructure.protocols import ILibraryGateway
 from core.types import Result, SeatPoi
@@ -136,13 +137,41 @@ class ITaskCancellation(ABC):
 
 
 class CancellationToken(ITaskCancellation):
-    """简单的取消令牌实现。"""
+    """线程安全的取消令牌实现。
+
+    基于 threading.Event，支持注册取消回调。
+    向后兼容旧接口（is_cancelled / cancel）。
+    """
 
     def __init__(self) -> None:
-        self._cancelled: bool = False
+        import threading
+
+        self._event = threading.Event()
+        self._callbacks: list[Callable[[], None]] = []
+        self._lock = threading.Lock()
 
     def is_cancelled(self) -> bool:
-        return self._cancelled
+        return self._event.is_set()
 
     def cancel(self) -> None:
-        self._cancelled = True
+        self._event.set()
+        with self._lock:
+            for cb in self._callbacks:
+                try:
+                    cb()
+                except Exception:
+                    pass
+
+    def register_callback(self, callback: Callable[[], None]) -> None:
+        """注册取消回调（可选扩展）。"""
+        with self._lock:
+            self._callbacks.append(callback)
+            if self._event.is_set():
+                try:
+                    callback()
+                except Exception:
+                    pass
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """等待取消信号（可选扩展）。"""
+        return self._event.wait(timeout)

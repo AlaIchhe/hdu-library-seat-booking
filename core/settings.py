@@ -49,12 +49,20 @@ class AuthConfig(BaseModel):
 class HTTPConfig(BaseModel):
     """HTTP 请求配置。"""
 
-    timeout: int = Field(default=10, ge=1, le=120, description="请求超时秒数")
+    timeout: int = Field(default=10, ge=1, le=120, description="请求超时秒数（读取超时）")
+    connect_timeout: float = Field(default=5.0, ge=1.0, le=30.0, description="TCP 连接超时秒数")
     verify: bool = Field(default=False, description="SSL 证书验证")
     trust_env: bool = Field(default=False, description="是否信任代理环境变量")
     headers: dict[str, str] = Field(default_factory=dict, description="自定义请求头")
     params: dict[str, str] = Field(
         default_factory=lambda: {"LAB_JSON": "1"}, description="自定义 GET 参数"
+    )
+    # Transport 级别重试
+    transport_max_retries: int = Field(
+        default=3, ge=0, le=10, description="HTTP 层最大重试次数（仅对 5xx）"
+    )
+    transport_backoff_factor: float = Field(
+        default=0.5, ge=0.0, le=5.0, description="HTTP 层重试退避因子"
     )
 
 
@@ -64,6 +72,27 @@ class BookingConfig(BaseModel):
     max_trials: int = Field(default=5, ge=1, le=100, description="最大重试次数")
     retry_delay: float = Field(default=1.0, ge=0.0, le=60.0, description="重试间隔秒数")
     dry_run: bool = Field(default=False, description="预览模式 (不实际提交)")
+    # 整体墙钟超时
+    overall_timeout: float | None = Field(
+        default=300.0, description="预约流程整体超时秒数（None 表示无限制）"
+    )
+
+
+class ResilienceConfig(BaseModel):
+    """容错配置 — 重试、熔断、超时。"""
+
+    # 重试策略
+    retry_max_attempts: int = Field(default=3, ge=1, le=20, description="应用层最大重试次数")
+    retry_initial_wait: float = Field(default=1.0, ge=0.0, le=10.0, description="初始等待秒数")
+    retry_max_wait: float = Field(default=10.0, ge=1.0, le=60.0, description="最大等待秒数")
+    retry_max_duration: float = Field(default=30.0, ge=1.0, le=300.0, description="重试总超时秒数")
+
+    # 熔断器
+    cb_failure_threshold: int = Field(default=5, ge=1, le=20, description="熔断触发连续失败次数")
+    cb_recovery_timeout: float = Field(
+        default=30.0, ge=5.0, le=300.0, description="熔断恢复等待秒数"
+    )
+    cb_enabled: bool = Field(default=True, description="是否启用熔断器")
 
 
 class LoggingConfig(BaseModel):
@@ -129,6 +158,7 @@ class Settings(BaseSettings):
     plans: PlansConfig = Field(default_factory=PlansConfig)
     notification: NotificationConfig = Field(default_factory=NotificationConfig)
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
+    resilience: ResilienceConfig = Field(default_factory=ResilienceConfig)
 
     # --- 顶层快捷访问 ---
 

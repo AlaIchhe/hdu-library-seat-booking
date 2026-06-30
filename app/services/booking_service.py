@@ -3,6 +3,12 @@
 
 协调房间查询 → 座位选择 → 预约提交的完整流程，
 含智能重试、定时执行、预览模式。
+
+容错策略：
+  - 应用层：指数退避 + 抖动重试（仅重试瞬时错误）
+  - 熔断器：连续失败后暂停，防止雪崩
+  - 整体超时：墙钟超时保护
+  - Transport 层：连接池 + 5xx 自动重试
 """
 
 import time
@@ -20,6 +26,11 @@ from core.exceptions import (
 from core.infrastructure.protocols import ILibraryGateway
 from core.metrics import ErrorCategory, error_tracker
 from core.observability import get_logger, metrics_collector, set_correlation_id
+from core.resilience import (
+    CircuitBreaker,
+    TimeoutConfig,
+    deadline,
+)
 
 from ..models.plan import BookingPlan
 from .base import (
@@ -129,6 +140,13 @@ class BookingOrchestrator:
       - notifier: INotificationChannel
       - retry_decider: 重试决策函数
       - cancellation: ITaskCancellation (可选)
+      - circuit_breaker: 熔断器（可选）
+      - timeout_config: 超时配置（可选）
+
+    容错策略：
+      - 熔断器：连续 N 次失败后暂停 M 秒
+      - 整体超时：墙钟超时保护
+      - 智能重试：基于服务器消息的 CONTINUE/SKIP/STOP 决策
     """
 
     def __init__(
@@ -138,14 +156,18 @@ class BookingOrchestrator:
         notifier: INotificationChannel,
         retry_decider: Callable[[dict], RetryDecision] = default_retry_decider,
         cancellation: ITaskCancellation | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
+        timeout_config: TimeoutConfig | None = None,
     ):
         self.client = gateway
         self.strategy = strategy
         self.notifier = notifier
         self.retry_decider = retry_decider
         self.cancellation = cancellation or CancellationToken()
+        self.circuit_breaker = circuit_breaker
+        self.timeout_config = timeout_config or TimeoutConfig()
 
-        # 可配置参数
+        # 可配置参数（向后兼容）
         self.max_trials = C.DEFAULT_MAX_TRIALS
         self.retry_delay = C.DEFAULT_RETRY_DELAY
         self.dry_run = False
@@ -344,6 +366,11 @@ class BookingOrchestrator:
         按 plan 顺序依次尝试，任一成功即停止（FR-4.1）。
         每个 plan 最多重试 max_trials 次。
 
+        容错特性：
+        - 整体墙钟超时（通过 timeout_config.overall_timeout）
+        - 熔断器检查（连续失败后暂停）
+        - 关联 ID 自动传播到所有日志
+
         Returns
         -------
         list[BookingResult]
@@ -354,110 +381,186 @@ class BookingOrchestrator:
 
         # 为本次预约流程设置关联 ID，所有日志自动携带
         with set_correlation_id():
-            logger.info(
-                "booking_flow_started",
-                plan_count=len(plans),
-                max_trials=trials,
-            )
-            metrics_collector.increment("booking_flows_started_total")
+            # 整体墙钟超时保护
+            if self.timeout_config.overall_timeout:
+                try:
+                    with deadline(self.timeout_config.overall_timeout):
+                        return self._book_all_internal(plans, trials, results, on_progress)
+                except TimeoutError:
+                    logger.error(
+                        "booking_flow_timeout",
+                        timeout=self.timeout_config.overall_timeout,
+                        plans_attempted=len(plans),
+                        results_count=len(results),
+                    )
+                    if results:
+                        last = results[-1]
+                        self.notifier.send(
+                            "预约超时",
+                            f"操作超时（{self.timeout_config.overall_timeout:.0f}秒），"
+                            f"已尝试 {len(results)} 次。最后状态: {last.message}",
+                            success=False,
+                        )
+                    return results
 
-            for plan in plans:
+            return self._book_all_internal(plans, trials, results, on_progress)
+
+    def _book_all_internal(
+        self,
+        plans: list[BookingPlan],
+        trials: int,
+        results: list[BookingResult],
+        on_progress: Callable[[BookingResult], None] | None,
+    ) -> list[BookingResult]:
+        """批量预约的内部实现（在整体超时保护内执行）。"""
+        logger.info(
+            "booking_flow_started",
+            plan_count=len(plans),
+            max_trials=trials,
+        )
+        metrics_collector.increment("booking_flows_started_total")
+
+        for plan in plans:
+            if self.cancellation.is_cancelled():
+                logger.info("booking_cancelled_by_user", plan=plan.to_plan_code())
+                results.append(BookingResult(plan, False, "用户取消"))
+                break
+
+            # 熔断器检查
+            if self.circuit_breaker and not self.circuit_breaker.can_execute():
+                logger.warning(
+                    "circuit_breaker_open",
+                    plan=plan.to_plan_code(),
+                    state=self.circuit_breaker.state.value,
+                )
+                self.notifier.send(
+                    "预约中止",
+                    "服务暂时不可用（熔断器已打开），请稍后重试。",
+                    success=False,
+                )
+                return results
+
+            for attempt in range(1, trials + 1):
                 if self.cancellation.is_cancelled():
-                    logger.info("booking_cancelled_by_user", plan=plan.to_plan_code())
+                    logger.info(
+                        "booking_cancelled_by_user_mid_attempt",
+                        plan=plan.to_plan_code(),
+                        attempt=attempt,
+                    )
                     results.append(BookingResult(plan, False, "用户取消"))
                     break
 
-                for attempt in range(1, trials + 1):
-                    if self.cancellation.is_cancelled():
-                        logger.info(
-                            "booking_cancelled_by_user_mid_attempt",
-                            plan=plan.to_plan_code(),
-                            attempt=attempt,
-                        )
-                        results.append(BookingResult(plan, False, "用户取消"))
-                        break
+                logger.info(
+                    "booking_attempt",
+                    plan=plan.to_plan_code(),
+                    attempt=attempt,
+                    max_trials=trials,
+                )
+                result = self.book_single(plan)
+                results.append(result)
 
-                    logger.info(
-                        "booking_attempt",
-                        plan=plan.to_plan_code(),
-                        attempt=attempt,
-                        max_trials=trials,
+                if on_progress:
+                    on_progress(result)
+
+                if result.success:
+                    # 通知熔断器成功
+                    if self.circuit_breaker:
+                        self.circuit_breaker.record_success()
+                    self.notifier.send(
+                        "预约成功！",
+                        self._format_success_body(result),
+                        success=True,
                     )
-                    result = self.book_single(plan)
-                    results.append(result)
+                    logger.info(
+                        "booking_flow_completed",
+                        attempts=len(results),
+                        plan=plan.to_plan_code(),
+                    )
+                    return results
 
-                    if on_progress:
-                        on_progress(result)
+                # 通知熔断器失败
+                if self.circuit_breaker:
+                    self.circuit_breaker.record_failure()
 
-                    if result.success:
+                # 智能重试决策
+                if result.raw_response:
+                    decision = self.retry_decider(result.raw_response)
+                    logger.info(
+                        "retry_decision",
+                        action=decision.action,
+                        reason=decision.reason,
+                        plan=plan.to_plan_code(),
+                    )
+
+                    if decision.action == RetryDecision.STOP:
                         self.notifier.send(
-                            "预约成功！",
-                            self._format_success_body(result),
-                            success=True,
+                            "预约中止",
+                            f"服务器返回: {decision.reason}\n请检查系统是否需要更新。",
+                            success=False,
                         )
-                        logger.info(
-                            "booking_flow_completed",
-                            attempts=len(results),
+                        logger.error(
+                            "booking_flow_aborted",
+                            reason=decision.reason,
                             plan=plan.to_plan_code(),
                         )
                         return results
 
-                    # 智能重试决策
-                    if result.raw_response:
-                        decision = self.retry_decider(result.raw_response)
+                    if decision.action == RetryDecision.SKIP:
                         logger.info(
-                            "retry_decision",
-                            action=decision.action,
-                            reason=decision.reason,
+                            "plan_skipped",
                             plan=plan.to_plan_code(),
+                            reason=decision.reason,
                         )
+                        break  # 跳出重试循环，进入下一个 plan
 
-                        if decision.action == RetryDecision.STOP:
-                            self.notifier.send(
-                                "预约中止",
-                                f"服务器返回: {decision.reason}\n请检查系统是否需要更新。",
-                                success=False,
-                            )
-                            logger.error(
-                                "booking_flow_aborted",
-                                reason=decision.reason,
-                                plan=plan.to_plan_code(),
-                            )
-                            return results
+                # 重试延迟（使用指数退避替代固定延迟）
+                if attempt < trials:
+                    delay = self._backoff_delay(attempt)
+                    logger.debug("retry_delay", delay=delay, attempt=attempt)
+                    time.sleep(delay)
 
-                        if decision.action == RetryDecision.SKIP:
-                            logger.info(
-                                "plan_skipped",
-                                plan=plan.to_plan_code(),
-                                reason=decision.reason,
-                            )
-                            break  # 跳出重试循环，进入下一个 plan
+        # 全部失败
+        if results:
+            last = results[-1]
+            self.notifier.send(
+                "预约失败",
+                f"已尝试 {len(plans)} 个方案，共 {len(results)} 次请求，均未成功。\n"
+                f"最后错误: {last.message}",
+                success=False,
+            )
+            logger.warning(
+                "booking_flow_failed",
+                plans_attempted=len(plans),
+                total_attempts=len(results),
+                last_error=last.message,
+            )
+            metrics_collector.increment(
+                "booking_requests_total",
+                labels={"status": "failed"},
+            )
 
-                    # 重试延迟
-                    if attempt < trials:
-                        time.sleep(self.retry_delay)
+        return results
 
-            # 全部失败
-            if results:
-                last = results[-1]
-                self.notifier.send(
-                    "预约失败",
-                    f"已尝试 {len(plans)} 个方案，共 {len(results)} 次请求，均未成功。\n"
-                    f"最后错误: {last.message}",
-                    success=False,
-                )
-                logger.warning(
-                    "booking_flow_failed",
-                    plans_attempted=len(plans),
-                    total_attempts=len(results),
-                    last_error=last.message,
-                )
-                metrics_collector.increment(
-                    "booking_requests_total",
-                    labels={"status": "failed"},
-                )
+    def _backoff_delay(self, attempt: int) -> float:
+        """计算指数退避延迟（带抖动）。
 
-            return results
+        Parameters
+        ----------
+        attempt : int
+            当前尝试次数（从 1 开始）。
+
+        Returns
+        -------
+        float
+            延迟秒数。
+        """
+        import random
+
+        # 指数退避: delay * 2^(attempt-1)
+        delay = self.retry_delay * (2 ** (attempt - 1))
+        # 全抖动: [0, delay]
+        jitter = random.uniform(0, delay)
+        return jitter
 
     # ------------------------------------------------------------------
     # 定时预约

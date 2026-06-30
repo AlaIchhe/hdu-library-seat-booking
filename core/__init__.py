@@ -47,8 +47,24 @@ from .observability import (
     metrics_collector,
     set_correlation_id,
 )
+from .resilience import (
+    CancellationToken,
+    CircuitBreaker,
+    CircuitOpenError,
+    CircuitState,
+    TimeoutConfig,
+    classify_http_status,
+    deadline,
+    is_retryable,
+    is_retryable_status,
+    make_retry_decorator,
+)
 from .room_cache import RoomCache
-from .settings import Settings, get_settings
+from .settings import (
+    ResilienceConfig,
+    Settings,
+    get_settings,
+)
 
 __all__ = [
     "DEFAULT_HEADERS",
@@ -66,6 +82,11 @@ __all__ = [
     "BookingCancelled",
     "BookingError",
     "BookingValidationError",
+    # Resilience
+    "CancellationToken",
+    "CircuitBreaker",
+    "CircuitOpenError",
+    "CircuitState",
     "ConfigParser",
     "CookieError",
     "ErrorCategory",
@@ -83,20 +104,27 @@ __all__ = [
     "MetricsCollector",
     "NullInstrumentation",
     "NullObservability",
+    "ResilienceConfig",
     "RoomCache",
     "RoomQueryError",
     "SeatQueryError",
     "SessionAuthenticator",
     "Settings",
+    "TimeoutConfig",
+    "classify_http_status",
     "configure_from_config",
     "configure_logging",
     "create_default_config",
+    "deadline",
     "error_tracker",
     "generate_api_token",
     "get_correlation_id",
     "get_logger",
     "get_settings",
+    "is_retryable",
+    "is_retryable_status",
     "load_yaml_config",
+    "make_retry_decorator",
     "metrics_collector",
     "save_yaml_config",
     "set_correlation_id",
