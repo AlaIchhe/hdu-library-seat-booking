@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include MANIFEST.in
+recursive-include core *.py
+recursive-include core py.typed
+recursive-include app *.py
+recursive-include app py.typed
+recursive-include tests *.py

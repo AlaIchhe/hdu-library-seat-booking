@@ -24,9 +24,11 @@ class HduLibraryGateway(ILibraryGateway):
     def __init__(
         self,
         transport,
+        settings=None,
         instrumentation: Instrumentation | None = None,
     ):
         self._transport = transport
+        self._settings = settings
         self._instrumentation = instrumentation
 
     def _record(self, category: str, message: str, exc: Exception | None = None) -> None:
@@ -35,11 +37,13 @@ class HduLibraryGateway(ILibraryGateway):
 
     @property
     def uid(self) -> str:
-        return ""
+        return self._settings.auth.uid if self._settings else ""
 
     @property
     def urls(self) -> dict:
-        return self._transport.config.get("urls") or dict(C.URLS)
+        if self._settings:
+            return self._settings.api.model_dump()  # type: ignore[no-any-return]
+        return dict(C.URLS)
 
     @property
     def session(self):

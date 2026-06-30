@@ -4,9 +4,8 @@
 用户明确指定房间、楼层、座位号，系统精确匹配。
 """
 
-from typing import Any
-
 from core.exceptions import SeatQueryError
+from core.infrastructure.protocols import ILibraryGateway
 from core.metrics import ErrorCategory, error_tracker
 
 from ..models.plan import BookingPlan
@@ -19,13 +18,13 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
     在楼层列表中精准定位 plan 指定的 floor_id + seat_num。
     """
 
-    def select_seat(self, client: Any, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
         floors = kwargs.get("floors")
         if not floors:
-            floors = self._fetch_floors(client, plan)
+            floors = self._fetch_floors(gateway, plan)
 
         try:
-            _, seat = client.find_seat_in_floors(floors, plan.floor_id, plan.seat_num)
+            _, seat = gateway.find_seat_in_floors(floors, plan.floor_id, plan.seat_num)
             return seat  # type: ignore[no-any-return]
         except SeatQueryError as exc:
             error_tracker.record(
@@ -44,13 +43,13 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
             f"{plan.duration_hours}h"
         )
 
-    def _fetch_floors(self, client, plan):
+    def _fetch_floors(self, gateway: ILibraryGateway, plan: BookingPlan):
         """当外部未提供 floors 时自行查询。"""
-        room_types = client.get_room_types()
-        detail = client.get_room_detail(room_types[0]["query"])
+        room_types = gateway.get_room_types()
+        detail = gateway.get_room_detail(room_types[0]["query"])
         cat_id = detail["space_category"]["category_id"]
         con_id = detail["space_category"]["content_id"]
         from core.domain.time import build_begin_time
 
         begin = build_begin_time(plan.start_hour, plan.book_days)
-        return client.get_seat_map(cat_id, con_id, begin, plan.duration_hours)
+        return gateway.get_seat_map(cat_id, con_id, begin, plan.duration_hours)

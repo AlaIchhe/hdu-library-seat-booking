@@ -22,6 +22,7 @@ from .auth import generate_api_token
 from .infrastructure.protocols import ILibraryGateway, ISessionAuthenticator
 from .infrastructure.user_info import find_user_info
 from .metrics import ErrorCategory, error_tracker
+from .settings import _flatten_yaml
 
 
 class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
@@ -50,31 +51,45 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
     # ------------------------------------------------------------------
     # 初始化
     # ------------------------------------------------------------------
-    def __init__(self, config=None, timeout=None):
+    def __init__(self, config=None, timeout=None, settings=None):
         """初始化客户端。
 
         参数
         ----------
         config : dict, optional
-            配置字典。通常来自 config.yaml，包含 session、urls 等字段。
+            旧版配置字典（向后兼容）。
         timeout : int, optional
-            HTTP 请求超时秒数。默认使用 DEFAULT_TIMEOUT。
+            HTTP 请求超时秒数（向后兼容）。
+        settings : Settings, optional
+            新版统一配置。优先使用。
         """
-        self.config = config or {}
-        self.timeout = int(
-            (self.config.get("request") or {}).get("timeout") or timeout or C.DEFAULT_TIMEOUT
-        )
-        self.urls = self.config.get("urls") or dict(C.URLS)
-        self._uid = str((self.config.get("user_info") or {}).get("uid") or "")
-        self._name = str((self.config.get("user_info") or {}).get("name") or "")
+        # 向后兼容：从旧 config dict 或新 settings 构建
+        if settings is None:
+            from .settings import Settings, _unflatten_keys
 
-        # 创建 requests.Session 并设置默认 headers / params
-        session_cfg = self.config.get("session") or {}
+            if isinstance(config, (str, Path)):
+                settings = Settings.from_yaml(config)
+            elif config:
+                nested = _unflatten_keys(_flatten_yaml(config))
+                settings = Settings(**nested)
+            else:
+                settings = Settings()
+
+        self._settings = settings
+        self.config = settings.model_dump()  # 向后兼容
+        # 向后兼容: config 中的 timeout 优先于显式参数
+        config_timeout = ((config or {}).get("request") or {}).get("timeout")
+        self.timeout = config_timeout or timeout or settings.http.timeout
+        self.urls = settings.urls
+        self._uid = settings.auth.uid or ""
+        self._name = settings.auth.name or ""
+
+        # 创建 requests.Session
         self.session = requests.Session()
-        self.session.headers.update(session_cfg.get("headers") or dict(C.DEFAULT_HEADERS))
-        self.session.params = session_cfg.get("params") or dict(C.DEFAULT_SESSION_PARAMS)
-        self.session.trust_env = bool(session_cfg.get("trust_env", False))
-        self.session.verify = bool(session_cfg.get("verify", False))
+        self.session.headers.update(settings.http.headers or dict(C.DEFAULT_HEADERS))
+        self.session.params = settings.http.params or dict(C.DEFAULT_SESSION_PARAMS)
+        self.session.trust_env = settings.http.trust_env
+        self.session.verify = settings.http.verify
 
         # 禁用 SSL 警告
         requests.packages.urllib3.disable_warnings()

@@ -3,18 +3,17 @@
 HDU 图书馆座位预约系统 — 终端交互入口。
 
 使用方法:
-    python main.py              # 启动终端交互菜单
-    python main.py --help       # 查看 CLI 帮助
-    python main.py --cli ...    # 命令行一次性执行
+    uv run hdu-tui              # 启动终端交互菜单
+    uv run hdu-book --help      # 查看 CLI 帮助
 """
 
 import sys
 from pathlib import Path
 
-import dotenv
+from dotenv import load_dotenv
 
 # 加载项目根目录的 .env（在 import app 之前执行）
-dotenv.load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 
 def main():
@@ -30,40 +29,23 @@ def main():
 
 def _run_terminal():
     """启动终端交互界面。"""
-    import os
-    from pathlib import Path
-
     from app.services import (
         AuthService,
         PlanService,
         YamlPlanRepository,
     )
     from app.ui.terminal import TerminalUI
-    from core import HduLibraryClient
-    from core.config import load_yaml_config
+    from core import HduLibraryClient, get_settings
 
-    # 加载配置
-    config_path = Path(os.environ.get("HDU_CONFIG", "config.yaml"))
-    config = {}
-    if config_path.exists():
-        try:
-            config = load_yaml_config(config_path)
-        except Exception:
-            from core.metrics import ErrorCategory, error_tracker
-
-            error_tracker.record(
-                ErrorCategory.CONFIG,
-                f"入口配置文件加载失败：{config_path}",
-                module=__name__,
-            )
+    # 加载统一配置
+    settings = get_settings()
 
     # 初始化
-    client = HduLibraryClient(config)
+    client = HduLibraryClient(settings=settings)
     auth = AuthService(client)
 
     # 方案存储
-    plans_file = config.get("plans_file", "plans.yaml")
-    repo = YamlPlanRepository(plans_file)
+    repo = YamlPlanRepository(settings.plans.file)
     plan_service = PlanService(repo)
 
     # 启动 UI

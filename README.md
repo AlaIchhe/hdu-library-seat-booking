@@ -7,12 +7,54 @@
 ### 环境要求
 
 - Python 3.10+
-- pip
+- [uv](https://github.com/astral-sh/uv) (包管理器)
 
-### 安装依赖
+### 快速开始
 
 ```bash
-pip install requests pyyaml
+# 安装 uv (Windows)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 安装 uv (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 克隆项目
+git clone https://github.com/zhuhe/hdu-library-booking.git
+cd hdu-library-booking
+
+# 安装依赖 + 创建虚拟环境
+uv sync
+
+# 运行
+uv run hdu-tui                                    # 终端交互模式
+uv run hdu-book --cookie "uid=xxx;auth=yyy" --plan "1:1558:296:13:9"
+```
+
+### uv 常用命令
+
+```bash
+# 同步依赖（根据 uv.lock 安装）
+uv sync
+
+# 添加依赖
+uv add requests
+
+# 添加开发依赖
+uv add --dev pytest
+
+# 升级依赖
+uv sync --upgrade
+
+# 锁定依赖（生成/更新 uv.lock）
+uv lock
+
+# 运行命令（自动激活虚拟环境）
+uv run python main.py
+uv run pytest tests/unit/
+uv run ruff check core/ app/
+
+# 指定 Python 版本
+uv sync --python 3.12
 ```
 
 ### 运行
@@ -20,28 +62,25 @@ pip install requests pyyaml
 终端交互模式：
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 命令行一次性执行：
 
 ```bash
 # Cookie 认证
-python main.py --cli --cookie "uid=xxx;auth=yyy" --plan "1:1558:296:13:9"
-
-# 密码认证
-python main.py --cli --user 21012345 --passwd mypass --plan "1:1558:296:13:9"
+uv run hdu-book --cookie "uid=xxx;auth=yyy" --plan "1:1558:296:13:9"
 
 # 预览模式（不实际提交）
-python main.py --cli --cookie "..." --plan "..." --dry-run
+uv run hdu-book --cookie "..." --plan "..." --dry-run
 
 # 定时预约
-python main.py --cli --cookie "..." --plan "..." --at "19:59:30"
+uv run hdu-book --cookie "..." --plan "..." --at "19:59:30"
 
 # 环境变量
 export HDU_COOKIE="uid=xxx;auth=yyy"
 export HDU_PLAN="1:1558:296:13:9"
-python main.py --cli
+uv run hdu-book
 ```
 
 ### pip 安装（可选）
@@ -56,7 +95,7 @@ hdu-book --cookie "..." --plan "..."
 
 ```bash
 # 每天 19:58 自动执行预约
-58 19 * * * cd /path/to/project && python main.py --cli >> booking.log 2>&1
+58 19 * * * cd /path/to/project && uv run hdu-book >> booking.log 2>&1
 ```
 
 ## 错误追踪

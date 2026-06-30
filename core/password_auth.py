@@ -33,7 +33,6 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from . import constants as C
 from . import exceptions as E
 from .metrics import ErrorCategory, error_tracker
 
@@ -75,10 +74,9 @@ class PasswordAuthClient:
         bool
             登录是否成功（CAS SSO 下始终返回 False）。
         """
-        user_info = self._client.config.get("user_info") or {}
-        uname = username or user_info.get("login_name")
-        pwd = password or user_info.get("password")
-        oid = org_id or user_info.get("org_id") or C.DEFAULT_ORG_ID
+        uname = username or self._client._settings.auth.login_name
+        pwd = password or self._client._settings.auth.password
+        oid = org_id or self._client._settings.auth.org_id
 
         if not uname or not pwd:
             error_tracker.record(
@@ -88,7 +86,7 @@ class PasswordAuthClient:
             )
             raise E.LoginError("登录名或密码未提供")
 
-        url = self._client.urls.get("login") or C.URLS["login"]
+        url = self._client._settings.api.login
         resp = self._client._request(
             "POST",
             url,

@@ -1,7 +1,7 @@
 from time import sleep
 
+from .domain.seat_lookup import get_seat_lookup_time
 from .metrics import ErrorCategory, error_tracker
-from .utils import get_seat_lookup_time
 
 
 class RoomCache:

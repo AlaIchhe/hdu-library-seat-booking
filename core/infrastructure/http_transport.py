@@ -10,6 +10,7 @@ from .. import constants as C
 from .. import exceptions as E
 
 if TYPE_CHECKING:
+    from ..settings import Settings
     from .protocols import Instrumentation
 
 
@@ -18,24 +19,21 @@ class HttpTransport:
 
     def __init__(
         self,
-        config: dict | None = None,
-        timeout: int | None = None,
+        settings: Settings | None = None,
         instrumentation: Instrumentation | None = None,
     ):
-        self.config = config or {}
-        self.timeout = int(
-            (self.config.get("request") or {}).get("timeout") or timeout or C.DEFAULT_TIMEOUT
-        )
+        self._settings = settings
         self._instrumentation = instrumentation
+        s = settings or __import__("core.settings", fromlist=["Settings"]).Settings()
 
-        session_cfg = self.config.get("session") or {}
+        self.timeout = s.http.timeout
         self.session = requests.Session()
-        self.session.headers.update(session_cfg.get("headers") or dict(C.DEFAULT_HEADERS))
-        self.session.params = session_cfg.get("params") or dict(C.DEFAULT_SESSION_PARAMS)
-        self.session.trust_env = bool(session_cfg.get("trust_env", False))
-        self.session.verify = bool(session_cfg.get("verify", False))
+        self.session.headers.update(s.http.headers or dict(C.DEFAULT_HEADERS))
+        self.session.params = s.http.params or dict(C.DEFAULT_SESSION_PARAMS)
+        self.session.trust_env = s.http.trust_env
+        self.session.verify = s.http.verify
 
-        requests.packages.urllib3.disable_warnings()
+        requests.packages.urllib3.disable_warnings()  # type: ignore[attr-defined]
 
     def _record(self, category: str, message: str, exc: Exception | None = None) -> None:
         if self._instrumentation:

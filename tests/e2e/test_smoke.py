@@ -89,7 +89,7 @@ def authed_client(client):
     """
     cookie_file = os.environ.get(
         "HDU_COOKIE_FILE",
-        str(Path(__file__).parent / "cookies.json"),
+        str(Path(__file__).resolve().parent.parent.parent / "tests" / "cookies.json"),
     )
 
     # 策略 1: 从 Cookie 文件加载 + 验证

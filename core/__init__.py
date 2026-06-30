@@ -37,6 +37,7 @@ from .infrastructure.protocols import (
 from .infrastructure.session_auth import SessionAuthenticator
 from .metrics import ErrorCategory, ErrorRecord, ErrorTracker, error_tracker
 from .room_cache import RoomCache
+from .settings import Settings, get_settings
 
 __all__ = [
     "DEFAULT_HEADERS",
@@ -72,9 +73,11 @@ __all__ = [
     "RoomQueryError",
     "SeatQueryError",
     "SessionAuthenticator",
+    "Settings",
     "create_default_config",
     "error_tracker",
     "generate_api_token",
+    "get_settings",
     "load_yaml_config",
     "save_yaml_config",
 ]

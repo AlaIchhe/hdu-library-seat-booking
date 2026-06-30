@@ -37,6 +37,9 @@ plans.yaml
 tests/cookies.json
 tests/*.local.json
 
+# uv
+.venv/
+
 # pytest
 .pytest_cache/
 htmlcov/

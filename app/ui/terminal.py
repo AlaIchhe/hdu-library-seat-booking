@@ -9,12 +9,9 @@ import subprocess
 import sys
 
 from core import HduLibraryClient
+from core.domain.time import build_begin_time, build_execute_datetime
 from core.metrics import ErrorCategory, error_tracker
 from core.room_cache import RoomCache
-from core.utils import (
-    build_begin_time,
-    build_execute_datetime,
-)
 
 from ..models.plan import BookingPlan, PlanStatus
 from ..services.auth_service import AuthService

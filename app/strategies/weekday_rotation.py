@@ -6,9 +6,9 @@
 """
 
 from datetime import timedelta
-from typing import Any
 
 from core.domain.time import now_cst
+from core.infrastructure.protocols import ILibraryGateway
 
 from ..models.plan import BookingPlan, Weekday
 from ..services.base import ISeatSelectionStrategy
@@ -62,7 +62,7 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     # ISeatSelectionStrategy 实现
     # ------------------------------------------------------------------
-    def select_seat(self, client: Any, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
         """根据 plan 中的 weekday 选择对应座位。"""
         floors = kwargs.get("floors", [])
 
@@ -82,7 +82,7 @@ class WeekdayRotationStrategy(ISeatSelectionStrategy):
         seat_num = cfg.get("seat_num", plan.seat_num)
 
         try:
-            _, seat = client.find_seat_in_floors(floors, floor_id, seat_num)
+            _, seat = gateway.find_seat_in_floors(floors, floor_id, seat_num)
             return seat  # type: ignore[no-any-return]
         except Exception:
             return None

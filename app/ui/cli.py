@@ -6,10 +6,9 @@
 """
 
 import argparse
-import os
 import sys
 
-from core import HduLibraryClient
+from core import HduLibraryClient, get_settings
 from core.domain.time import build_begin_time, build_execute_datetime
 from core.metrics import ErrorCategory, error_tracker
 
@@ -28,6 +27,8 @@ from ..services.notification_service import (
 )
 from ..services.plan_service import PlanService
 from ..strategies.fixed_seat import FixedSeatStrategy
+from ..strategies.random_range import RandomRangeStrategy
+from ..strategies.weekday_rotation import WeekdayRotationStrategy
 
 
 class CLI:
@@ -51,22 +52,27 @@ class CLI:
             print(f"共 {error_tracker.total()} 条错误记录")
             return 0
 
-        # 环境变量合并
-        self._merge_env(args)
+        # 加载统一配置 (默认值 < .env < config.yaml < 环境变量)
+        settings = get_settings()
+
+        # CLI 参数覆盖
+        settings = settings.with_cli_overrides(
+            auth__cookie=args.cookie,
+            auth__cookie_file=args.cookie_file,
+            booking__max_trials=args.max_trials,
+            booking__retry_delay=args.retry_delay,
+            booking__dry_run=args.dry_run,
+            strategy__type=args.strategy,
+            notification__wechat_webhook=args.wechat_webhook,
+            logging__file=args.log_file,
+        )
 
         # 构建客户端
-        client = self._build_client(args)
+        client = HduLibraryClient(settings=settings)
         auth = AuthService(client)
 
         # 认证
-        if not self._authenticate(args, auth):
-            error_tracker.record(
-                ErrorCategory.AUTH,
-                "CLI 认证失败",
-                module=__name__,
-            )
-            print("认证失败，退出")
-            return 1
+        self._authenticate(args, auth)
 
         # 解析方案
         plans = self._resolve_plans(args)
@@ -80,7 +86,7 @@ class CLI:
             return 1
 
         # 构建策略
-        strategy = FixedSeatStrategy()
+        strategy = self._build_strategy(args)
 
         # 构建通知
         notifier = self._build_notifier(args)
@@ -101,9 +107,9 @@ class CLI:
 
         # 执行
         orchestrator = BookingOrchestrator(
-            client,
-            strategy,
-            notifier,
+            gateway=client,
+            strategy=strategy,
+            notifier=notifier,
             retry_decider=default_retry_decider,
         )
         orchestrator.max_trials = args.max_trials
@@ -167,6 +173,15 @@ class CLI:
         )
         plan_group.add_argument("--plan-file", help="YAML 方案文件路径")
 
+        # 策略
+        strategy_group = p.add_argument_group("策略")
+        strategy_group.add_argument(
+            "--strategy",
+            choices=["fixed", "random", "weekday"],
+            default="fixed",
+            help="座位选择策略 (默认: fixed)",
+        )
+
         # 执行
         exec_group = p.add_argument_group("执行")
         exec_group.add_argument("--at", dest="execute_at", help="定时执行时间 (HH:MM 或 HH:MM:SS)")
@@ -199,47 +214,25 @@ class CLI:
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
-    def _merge_env(self, args) -> None:
-        """将环境变量合并到 args。"""
-        env_map = {
-            "cookie": "HDU_COOKIE",
-            "cookie_file": "HDU_COOKIE_FILE",
-            "execute_at": "HDU_AT",
-        }
-        for attr, env_var in env_map.items():
-            if not getattr(args, attr, None):
-                setattr(args, attr, os.environ.get(env_var))
-
-        if not args.plans:
-            env_plan = os.environ.get("HDU_PLAN")
-            if env_plan:
-                args.plans = [env_plan]
-
-        if not args.plan_file:
-            args.plan_file = os.environ.get("HDU_PLAN_FILE")
-
-        if args.max_trials == 5:  # default
-            env_trials = os.environ.get("HDU_MAX_TRIALS")
-            if env_trials:
-                args.max_trials = int(env_trials)
-
-    def _build_client(self, args) -> HduLibraryClient:
-        return HduLibraryClient()
-
-    def _authenticate(self, args, auth: AuthService) -> bool:
+    def _authenticate(self, args, auth: AuthService) -> None:
+        """认证失败时抛出异常而非返回 bool。"""
         if args.cookie:
-            return auth.authenticate_with_cookie(args.cookie)
+            auth.authenticate_with_cookie(args.cookie)
+            return
         if args.cookie_file:
-            return auth.authenticate_with_cookie_file(args.cookie_file)
-        # 密码认证已移至 core.password_auth，不纳入主流程
-        if args.username:
-            print(
-                "密码认证已停用。请使用 --cookie 或 --cookie-file 进行认证。\n"
-                "如需密码认证，请手动调用 core.password_auth 模块。"
-            )
-            return False
+            auth.authenticate_with_cookie_file(args.cookie_file)
+            return
         print("未提供认证信息（--cookie / --cookie-file）")
-        return False
+        sys.exit(1)
+
+    def _build_strategy(self, args):
+        """根据参数构建座位选择策略。"""
+        strategy_name = getattr(args, "strategy", "fixed")
+        if strategy_name == "random":
+            return RandomRangeStrategy(seat_range=(1, 500))
+        if strategy_name == "weekday":
+            return WeekdayRotationStrategy()
+        return FixedSeatStrategy()
 
     def _resolve_plans(self, args) -> list[BookingPlan]:
         plans = []

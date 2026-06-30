@@ -1,11 +1,11 @@
-"""Tests for core.utils — time utilities, plan parsing, booking helpers."""
+"""Tests for core.domain — time utilities, plan parsing, booking helpers."""
 
 from datetime import datetime, time
 from unittest.mock import patch
 
 import pytest
 
-from core.utils import (
+from core.domain import (
     booking_failed,
     booking_message,
     build_begin_time,

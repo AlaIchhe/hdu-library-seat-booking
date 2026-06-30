@@ -5,7 +5,8 @@
 """
 
 import random
-from typing import Any
+
+from core.infrastructure.protocols import ILibraryGateway
 
 from ..models.plan import BookingPlan
 from ..services.base import ISeatSelectionStrategy
@@ -38,7 +39,7 @@ class RandomRangeStrategy(ISeatSelectionStrategy):
     # ------------------------------------------------------------------
     # ISeatSelectionStrategy 实现
     # ------------------------------------------------------------------
-    def select_seat(self, client: Any, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
         self._attempt += 1
         floors = kwargs.get("floors", [])
 

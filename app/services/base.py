@@ -6,7 +6,8 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+
+from core.infrastructure.protocols import ILibraryGateway
 
 from ..models.plan import BookingPlan
 
@@ -50,13 +51,13 @@ class ISeatSelectionStrategy(ABC):
     """座位选择策略接口。"""
 
     @abstractmethod
-    def select_seat(self, client: Any, plan: BookingPlan, **kwargs) -> dict | None:
+    def select_seat(self, gateway: ILibraryGateway, plan: BookingPlan, **kwargs) -> dict | None:
         """从楼层中选出目标座位 POI 对象。
 
         Parameters
         ----------
-        client : HduLibraryClient
-            API 客户端实例。
+        gateway : ILibraryGateway
+            API 网关接口。
         plan : BookingPlan
             预约方案。
         **kwargs
