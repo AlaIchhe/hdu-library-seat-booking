@@ -155,7 +155,7 @@ class TestBookingOrchestrator:
         }
         client.get_room_types.return_value = [
             {
-                "name": "自习室(1)",
+                "name": "自习室",
                 "query": "space_category[category_id]=10&space_category[content_id]=20",
             }
         ]
@@ -197,7 +197,7 @@ class TestBookingOrchestrator:
 
     def test_book_single_room_detail_failure(self):
         client = MagicMock()
-        client.get_room_types.return_value = [{"name": "自习室(1)", "query": "q"}]
+        client.get_room_types.return_value = [{"name": "自习室", "query": "q"}]
         client.get_room_detail.side_effect = HduLibraryError("详情查询失败")
 
         orchestrator = self.make_orchestrator(client)
@@ -207,7 +207,7 @@ class TestBookingOrchestrator:
 
     def test_book_single_seat_map_failure(self):
         client = MagicMock()
-        client.get_room_types.return_value = [{"name": "自习室(1)", "query": "q"}]
+        client.get_room_types.return_value = [{"name": "自习室", "query": "q"}]
         client.get_room_detail.return_value = {
             "space_category": {"category_id": "10", "content_id": "20"}
         }
@@ -359,3 +359,158 @@ class TestBookingOrchestrator:
 
         with pytest.raises(BookingCancelled, match="用户取消"):
             orchestrator.book_at(plans, future)
+
+
+class TestBookSingleRoomTypeMatching:
+    """book_single 房间类型精确匹配测试。"""
+
+    def make_plan(self, **overrides):
+        defaults = {
+            "room_type": 1,
+            "floor_id": 1558,
+            "seat_num": "296",
+            "start_hour": 13,
+            "duration_hours": 9,
+        }
+        defaults.update(overrides)
+        return BookingPlan(**defaults)
+
+    def make_orchestrator(self, client=None, **kwargs):
+        gateway = client or MagicMock()
+        strategy = kwargs.pop("strategy", FixedSeatStrategy())
+        notifier = kwargs.pop("notifier", ConsoleNotification(use_colors=False))
+        return BookingOrchestrator(
+            gateway=gateway,
+            strategy=strategy,
+            notifier=notifier,
+            **kwargs,
+        )
+
+    def test_match_by_room_query(self):
+        """plan 带 room_query 时，应精确匹配 query 字符串。"""
+        client = MagicMock()
+        target_query = "space_category[category_id]=10&space_category[content_id]=20"
+        client.get_room_types.return_value = [
+            {"name": "自习室", "query": target_query},
+            {
+                "name": "阅览室",
+                "query": "space_category[category_id]=30&space_category[content_id]=40",
+            },
+        ]
+        client.get_room_detail.return_value = {
+            "space_category": {"category_id": "10", "content_id": "20"}
+        }
+        floor = {
+            "roomName": "3楼",
+            "seatMap": {
+                "info": {"id": "1558"},
+                "POIs": [{"title": "296", "id": "seat_296"}],
+            },
+        }
+        client.get_seat_map.return_value = [floor]
+        client.find_seat_in_floors.return_value = (floor, floor["seatMap"]["POIs"][0])
+        client.uid = "12345"
+        client.book_seat.return_value = {"CODE": "ok", "MESSAGE": "预约成功"}
+
+        plan = self.make_plan(room_query=target_query)
+        orchestrator = self.make_orchestrator(client)
+        result = orchestrator.book_single(plan)
+
+        assert result.success is True
+        # 验证 get_room_detail 使用了正确的 query
+        client.get_room_detail.assert_called_once_with(target_query)
+
+    def test_match_by_name_exact(self):
+        """plan 不带 room_query 时，用 ROOM_TYPE_MAP 精确名字匹配。"""
+        client = MagicMock()
+        client.get_room_types.return_value = [
+            {"name": "自习室", "query": "q1"},
+            {"name": "阅览室", "query": "q2"},
+        ]
+        client.get_room_detail.return_value = {
+            "space_category": {"category_id": "10", "content_id": "20"}
+        }
+        floor = {
+            "roomName": "3楼",
+            "seatMap": {
+                "info": {"id": "1558"},
+                "POIs": [{"title": "296", "id": "seat_296"}],
+            },
+        }
+        client.get_seat_map.return_value = [floor]
+        client.find_seat_in_floors.return_value = (floor, floor["seatMap"]["POIs"][0])
+        client.uid = "12345"
+        client.book_seat.return_value = {"CODE": "ok", "MESSAGE": "预约成功"}
+
+        plan = self.make_plan(room_type=1)  # room_type=1 → "自习室"
+        orchestrator = self.make_orchestrator(client)
+        result = orchestrator.book_single(plan)
+
+        assert result.success is True
+
+    def test_no_match_returns_failure(self):
+        """无匹配房间类型时，应返回失败（而非静默回退到第一个）。"""
+        client = MagicMock()
+        client.get_room_types.return_value = [
+            {"name": "自习室", "query": "q1"},
+        ]
+        client.uid = "12345"
+
+        # room_type=4（讨论室），但 API 只返回"自习室"
+        plan = self.make_plan(room_type=4)
+        orchestrator = self.make_orchestrator(client)
+        result = orchestrator.book_single(plan)
+
+        assert result.success is False
+        assert "未找到匹配的房间类型" in result.message
+
+    def test_no_match_does_not_fallback_to_first(self):
+        """验证无匹配时不会错误地使用第一个房间类型。"""
+        client = MagicMock()
+        client.get_room_types.return_value = [
+            {"name": "自习室", "query": "q_study"},
+        ]
+        client.uid = "12345"
+
+        plan = self.make_plan(room_type=3)  # 阅览室
+        orchestrator = self.make_orchestrator(client)
+        result = orchestrator.book_single(plan)
+
+        # 不应调用 get_room_detail（说明没有回退到第一个房间）
+        client.get_room_detail.assert_not_called()
+        assert result.success is False
+
+
+class TestOnProgressExceptionHandling:
+    """on_progress 回调异常不中断预约流程测试。"""
+
+    def test_on_progress_exception_does_not_abort(self):
+        """on_progress 抛异常时，book_all 应继续执行。"""
+        from hdu_library_booking.exceptions import HduLibraryError
+
+        client = MagicMock()
+        client.get_room_types.side_effect = HduLibraryError("网络错误")
+
+        orchestrator = BookingOrchestrator(
+            gateway=client,
+            strategy=FixedSeatStrategy(),
+            notifier=ConsoleNotification(use_colors=False),
+        )
+
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+        )
+
+        # on_progress 抛异常
+        def bad_callback(result):
+            raise RuntimeError("UI 崩溃")
+
+        results = orchestrator.book_all([plan], max_trials=1, on_progress=bad_callback)
+
+        # 虽然失败，但不应因 on_progress 异常而中断
+        assert len(results) == 1
+        assert results[0].success is False

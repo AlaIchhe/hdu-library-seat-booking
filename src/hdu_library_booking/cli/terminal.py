@@ -232,14 +232,27 @@ class TerminalUI:
         if not booker:
             booker = self.auth.name
 
+        # 精确解析房间类型编号：通过 API 名字在 ROOM_TYPE_MAP 中精确查找
+        from hdu_library_booking import constants as C
+
+        room_type = self._resolve_room_type(selected_room["name"])
+        if room_type is None:
+            print(f"\n⚠ 无法识别房间类型编号: '{selected_room['name']}'")
+            print(f"  已知类型: {', '.join(f'{k}={v}' for k, v in C.ROOM_TYPE_MAP.items())}")
+            print("  该方案将使用 room_type=1（自习室）作为默认值。")
+            if input("  仍要继续? [y/N]: ").strip().lower() != "y":
+                return
+            room_type = 1
+
         plan = BookingPlan(
-            room_type=self._extract_room_type(selected_room["name"]),
+            room_type=room_type,
             floor_id=int(floor_id),
             seat_num=seat_num,
             start_hour=start_hour,
             duration_hours=duration_hours,
             booker_name=booker,
             book_days=book_days,
+            room_query=selected_room["query"],
         )
 
         errors = plan.validate()
@@ -247,8 +260,8 @@ class TerminalUI:
             print("\n⚠ 方案校验失败:")
             for e in errors:
                 print(f"  - {e}")
-            if input("\n仍然保存? [y/N]: ").strip().lower() != "y":
-                return
+            print("  请重新创建方案。")
+            return
 
         self.plans.add(plan)
         print(f"\n✓ 方案已创建 (ID: {plan.plan_id})")
@@ -492,9 +505,15 @@ class TerminalUI:
                 print("  请输入有效数字")
 
     @staticmethod
-    def _extract_room_type(name: str) -> int:
-        """从房间名中提取房间类型编号。"""
-        for num, label in {"1": "自习", "2": "教师", "3": "阅览", "4": "讨论"}.items():
+    def _resolve_room_type(name: str) -> int | None:
+        """根据房间名精确查找房间类型编号。
+
+        使用 constants.ROOM_TYPE_MAP 进行精确匹配（而非子字符串模糊匹配）。
+        无匹配时返回 None，由调用者决定如何处理。
+        """
+        from hdu_library_booking import constants as C
+
+        for num, label in C.ROOM_TYPE_MAP.items():
             if label in name:
                 return int(num)
-        return 1  # 默认自习室
+        return None

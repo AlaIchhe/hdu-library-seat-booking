@@ -50,13 +50,27 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
 
     def _fetch_floors(self, gateway: ILibraryGateway, plan: BookingPlan) -> list[dict[str, Any]]:
         """当外部未提供 floors 时自行查询。"""
+        from hdu_library_booking.models.time_utils import build_begin_time
+
+        # 优先使用 plan 中保存的 room_query 精确查询
+        if plan.room_query:
+            detail = gateway.get_room_detail(plan.room_query)
+            space = detail["space_category"]
+            cat_id = str(space["category_id"])
+            con_id = str(space["content_id"])
+            begin = build_begin_time(plan.start_hour, plan.book_days)
+            return gateway.get_seat_map(cat_id, con_id, begin, plan.duration_hours)
+
+        # 回退：使用第一个房间类型（仅当无法精确匹配时）
         room_types = gateway.get_room_types()
+        if not room_types:
+            from hdu_library_booking.exceptions import RoomQueryError
+
+            raise RoomQueryError("无可用房间类型")
         first_room = room_types[0]
         detail = gateway.get_room_detail(str(first_room["query"]))
         space = detail["space_category"]
         cat_id = str(space["category_id"])
         con_id = str(space["content_id"])
-        from hdu_library_booking.models.time_utils import build_begin_time
-
-        begin = build_begin_time(plan.start_hour, plan.book_days)
+        begin = build_begin_time(plan.start_hour, plan.duration_hours)
         return gateway.get_seat_map(cat_id, con_id, begin, plan.duration_hours)

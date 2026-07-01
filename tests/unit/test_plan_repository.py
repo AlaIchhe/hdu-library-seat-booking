@@ -3,6 +3,9 @@
 import os
 import tempfile
 
+import pytest
+import yaml
+
 from hdu_library_booking.models.plan import BookingPlan, PlanStatus
 from hdu_library_booking.services.yaml_plan import YamlPlanRepository
 
@@ -102,15 +105,14 @@ class TestYamlPlanRepository:
         loaded = self.repo.load_all()
         assert len(loaded) >= 1
 
-    def test_handles_corrupt_yaml(self):
-        """损坏的 YAML 文件不应导致崩溃。"""
+    def test_handles_corrupt_yaml_raises(self):
+        """损坏的 YAML 文件应抛出异常（而非静默返回空列表）。"""
         with open(self.repo_path, "w", encoding="utf-8") as f:
             f.write(":: not valid yaml :: {{{")
 
         repo = YamlPlanRepository(self.repo_path)
-        # 应返回空列表而非抛出异常
-        plans = repo.load_all()
-        assert plans == []
+        with pytest.raises(yaml.YAMLError):
+            repo.load_all()
 
     def test_handles_non_list_yaml(self):
         """YAML 文件内容为非列表时应返回空列表。"""

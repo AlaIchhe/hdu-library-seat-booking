@@ -204,15 +204,16 @@ class BookingOrchestrator:
             )
             return BookingResult(plan, False, f"房间类型查询失败: {exc}")
 
-        # 匹配 room_type
-        matched = [
-            r
-            for r in room_types
-            if str(plan.room_type) in r.get("name", "")
-            or C.ROOM_TYPE_MAP.get(str(plan.room_type), "") in r.get("name", "")
-        ]
+        # 匹配 room_type — 优先用 room_query 精确匹配，回退到名字精确匹配
+        matched: list[dict] = []
+        if plan.room_query:
+            # 精确匹配：API 返回的 query 字符串
+            matched = [r for r in room_types if r.get("query") == plan.room_query]
         if not matched:
-            # Fallback: use first available
+            # 回退：用 ROOM_TYPE_MAP 精确匹配名字
+            target_name = C.ROOM_TYPE_MAP.get(str(plan.room_type), "")
+            matched = [r for r in room_types if r.get("name") == target_name]
+        if not matched:
             if not room_types:
                 error_tracker.record(
                     ErrorCategory.ROOM_QUERY,
@@ -221,7 +222,18 @@ class BookingOrchestrator:
                 )
                 logger.warning("no_room_types_available", plan=plan.to_plan_code())
                 return BookingResult(plan, False, "无可用房间类型")
-            matched = [room_types[0]]
+            # 无匹配 → 明确报错，不再静默回退
+            available = ", ".join(r.get("name", "?") for r in room_types)
+            msg = (
+                f"未找到匹配的房间类型: 期望 '{target_name or plan.room_type}', 可用: [{available}]"
+            )
+            error_tracker.record(
+                ErrorCategory.ROOM_QUERY,
+                f"{msg} [{plan.to_plan_code()}]",
+                module=__name__,
+            )
+            logger.warning("room_type_mismatch", plan=plan.to_plan_code())
+            return BookingResult(plan, False, msg)
 
         # 2. 查询房间详情
         room_item = matched[0]
@@ -453,7 +465,14 @@ class BookingOrchestrator:
                 results.append(result)
 
                 if on_progress:
-                    on_progress(result)
+                    try:
+                        on_progress(result)
+                    except Exception as exc:
+                        logger.warning(
+                            "on_progress_callback_failed",
+                            error=str(exc),
+                            plan=plan.to_plan_code(),
+                        )
 
                 if result.success:
                     # 通知熔断器成功
@@ -553,7 +572,8 @@ class BookingOrchestrator:
         delay = self.retry_delay * (2 ** (attempt - 1))
         # 全抖动: [0, delay]
         jitter = random.uniform(0, delay)
-        return jitter
+        # 保证最小延迟 100ms，避免紧密循环
+        return max(jitter, 0.1)
 
     # ------------------------------------------------------------------
     # 定时预约
@@ -585,6 +605,9 @@ class BookingOrchestrator:
         list[BookingResult]
         """
         now = datetime.now().astimezone()
+        # 确保 execute_at 是 offset-aware，避免 TypeError
+        if execute_at.tzinfo is None:
+            execute_at = execute_at.replace(tzinfo=now.tzinfo)
         wait_seconds = (execute_at - now).total_seconds()
 
         if wait_seconds > 0:

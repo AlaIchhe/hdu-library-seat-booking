@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 
 from hdu_library_booking.exceptions import SeatQueryError
 from hdu_library_booking.models.plan import BookingPlan
+from hdu_library_booking.services.booking import BookingOrchestrator
+from hdu_library_booking.services.notifications import ConsoleNotification
 from hdu_library_booking.strategies.fixed import FixedSeatStrategy
 from hdu_library_booking.strategies.random_range import RandomRangeStrategy
 
@@ -92,7 +94,7 @@ class TestFixedSeatStrategy:
     def test_select_seat_without_floors_fetches(self):
         """未传入 floors 时，策略应自行查询。"""
         client = MagicMock()
-        client.get_room_types.return_value = [{"name": "自习室(1)", "query": "q"}]
+        client.get_room_types.return_value = [{"name": "自习室", "query": "q"}]
         client.get_room_detail.return_value = {
             "space_category": {"category_id": "10", "content_id": "20"}
         }
@@ -231,3 +233,88 @@ class TestRandomRangeStrategy:
         result = strategy.select_seat(client, plan, floors=floors)
         assert result.is_success
         assert result.value["title"] == "150"
+
+
+class TestFixedSeatStrategyFetchFloors:
+    """FixedSeatStrategy._fetch_floors 测试。"""
+
+    def test_fetch_floors_uses_room_query(self):
+        """plan 带 room_query 时，应直接使用它查询 room_detail。"""
+        client = MagicMock()
+        query_str = "space_category[category_id]=10&space_category[content_id]=20"
+        client.get_room_detail.return_value = {
+            "space_category": {"category_id": "10", "content_id": "20"}
+        }
+        client.get_seat_map.return_value = [{"roomName": "3楼"}]
+
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+            room_query=query_str,
+        )
+        strategy = FixedSeatStrategy()
+        floors = strategy._fetch_floors(client, plan)
+
+        # 应使用 room_query 调用 get_room_detail，而非 get_room_types
+        client.get_room_detail.assert_called_once_with(query_str)
+        client.get_room_types.assert_not_called()
+        assert len(floors) == 1
+
+    def test_fetch_floors_fallback_without_room_query(self):
+        """plan 不带 room_query 时，回退到使用 get_room_types()[0]。"""
+        client = MagicMock()
+        client.get_room_types.return_value = [
+            {"name": "自习室", "query": "q1"},
+        ]
+        client.get_room_detail.return_value = {
+            "space_category": {"category_id": "10", "content_id": "20"}
+        }
+        client.get_seat_map.return_value = [{"roomName": "3楼"}]
+
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+        )
+        strategy = FixedSeatStrategy()
+        floors = strategy._fetch_floors(client, plan)
+
+        client.get_room_types.assert_called_once()
+        assert len(floors) == 1
+
+
+class TestBackoffDelayMinimum:
+    """BookingOrchestrator._backoff_delay 最小延迟测试。"""
+
+    def test_backoff_delay_has_minimum(self):
+        """指数退避延迟不应小于 0.1 秒。"""
+        orchestrator = BookingOrchestrator(
+            gateway=MagicMock(),
+            strategy=FixedSeatStrategy(),
+            notifier=ConsoleNotification(use_colors=False),
+        )
+        orchestrator.retry_delay = 0.05  # 很小的 base delay
+
+        # 多次调用，验证最小值
+        for _ in range(50):
+            delay = orchestrator._backoff_delay(attempt=1)
+            assert delay >= 0.1, f"delay {delay} 小于最小值 0.1"
+
+    def test_backoff_delay_increases_with_attempts(self):
+        """延迟应随 attempt 增加（整体趋势）。"""
+        orchestrator = BookingOrchestrator(
+            gateway=MagicMock(),
+            strategy=FixedSeatStrategy(),
+            notifier=ConsoleNotification(use_colors=False),
+        )
+        orchestrator.retry_delay = 1.0
+
+        # attempt=10 的平均延迟应远大于 attempt=1
+        avg_1 = sum(orchestrator._backoff_delay(1) for _ in range(100)) / 100
+        avg_10 = sum(orchestrator._backoff_delay(10) for _ in range(100)) / 100
+        assert avg_10 > avg_1 * 10

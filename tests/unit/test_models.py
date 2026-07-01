@@ -177,6 +177,47 @@ class TestBookingPlanSerialization:
         assert plan.status == PlanStatus.ENABLED
         assert plan.weekday is None
         assert plan.tags == []
+        assert plan.room_query == ""
+
+    def test_room_query_field_default(self):
+        """room_query 默认应为空字符串（向后兼容）。"""
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+        )
+        assert plan.room_query == ""
+
+    def test_room_query_roundtrip(self):
+        """room_query 应参与序列化往返。"""
+        query_str = "space_category[category_id]=10&space_category[content_id]=20"
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=9,
+            room_query=query_str,
+        )
+        d = plan.to_dict()
+        assert d["room_query"] == query_str
+        restored = BookingPlan.from_dict(d)
+        assert restored.room_query == query_str
+
+    def test_from_dict_without_room_query(self):
+        """旧 YAML 数据不含 room_query 时应兼容（from_dict 过滤未知字段）。"""
+        plan = BookingPlan.from_dict(
+            {
+                "room_type": 1,
+                "floor_id": 1558,
+                "seat_num": "296",
+                "start_hour": 13,
+                "duration_hours": 9,
+            }
+        )
+        assert plan.room_query == ""
 
 
 class TestBookingPlanCode:

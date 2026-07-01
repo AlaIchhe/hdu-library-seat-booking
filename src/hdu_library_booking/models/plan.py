@@ -70,6 +70,9 @@ class BookingPlan:
         方案唯一标识（由 repository 生成）。
     created_at : str, optional
         ISO 格式创建时间。
+    room_query : str, optional
+        API 返回的房间查询字符串（如 "space_category[category_id]=10&space_category[content_id]=20"）。
+        用于预约时精确定位房间类型，避免名字↔数字的脆弱转换。
     """
 
     room_type: int
@@ -84,6 +87,7 @@ class BookingPlan:
     tags: list[str] = field(default_factory=list)
     plan_id: str | None = None
     created_at: str | None = None
+    room_query: str = ""
 
     # ------------------------------------------------------------------
     # Validation

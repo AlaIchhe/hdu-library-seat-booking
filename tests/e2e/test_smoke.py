@@ -32,8 +32,10 @@
 
 import os
 import sys
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import dotenv
 import pytest
@@ -112,15 +114,15 @@ def authed_client(client):
         except Exception:
             pass
 
-    # 所有策略均失败
+    # 所有策略均失败 → skip（非 fail），因为这是凭据缺失而非代码 bug
     missing = []
     if not Path(cookie_file).exists():
         missing.append(f"Cookie 文件不存在: {cookie_file}")
     if not cookie_str:
         missing.append("未设置 HDU_COOKIE 环境变量")
 
-    pytest.fail(
-        "所有 Cookie 认证方式均失败。\n"
+    pytest.skip(
+        "所有 Cookie 认证方式均跳过（无凭据）。\n"
         + "\n".join(f"  - {m}" for m in missing)
         + "\n请:\n"
         + "  1) 在浏览器中登录 https://hdu.huitu.zhishulib.com\n"
@@ -715,3 +717,309 @@ class TestSmokeRetryDecision:
         """非法请求时返回 STOP。"""
         decision = default_retry_decider({"MESSAGE": "非法请求"})
         assert decision.action == "stop"
+
+
+# ============================================================================
+# 冒烟测试 11: 网络故障恢复 — 验证重试机制在真实网络抖动时生效
+# ============================================================================
+class TestSmokeNetworkRecovery:
+    """网络故障恢复冒烟 — 验证重试装饰器能处理瞬时网络错误。"""
+
+    def test_retry_decorator_recovers_from_transient_errors(self):
+        """重试装饰器应在瞬时网络错误后成功恢复。"""
+        from hdu_library_booking.resilience import make_retry_decorator
+
+        call_count = 0
+
+        @make_retry_decorator(max_attempts=3, max_duration=10, initial_wait=0.01, max_wait=0.05)
+        def flaky_operation():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ConnectionError("Simulated network glitch")
+            return "success"
+
+        result = flaky_operation()
+        assert result == "success"
+        assert call_count == 2
+
+    def test_retry_decorator_gives_up_on_persistent_errors(self):
+        """重试装饰器应在持续网络错误后放弃。"""
+        from hdu_library_booking.resilience import make_retry_decorator
+
+        call_count = 0
+
+        @make_retry_decorator(max_attempts=2, max_duration=10, initial_wait=0.01, max_wait=0.05)
+        def always_fails():
+            nonlocal call_count
+            call_count += 1
+            raise ConnectionError("Persistent failure")
+
+        with pytest.raises(ConnectionError):
+            always_fails()
+        assert call_count == 2
+
+    def test_circuit_breaker_opens_after_failures(self):
+        """熔断器应在连续失败后打开。"""
+        from hdu_library_booking.resilience import CircuitBreaker, CircuitOpenError
+
+        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+
+        @cb
+        def failing_op():
+            raise ConnectionError("fail")
+
+        with pytest.raises(ConnectionError):
+            failing_op()
+        with pytest.raises(ConnectionError):
+            failing_op()
+
+        # Circuit should now be open
+        with pytest.raises(CircuitOpenError):
+            failing_op()
+
+    def test_circuit_breaker_recovers_after_timeout(self):
+        """熔断器应在恢复时间后进入半开状态并允许试探。"""
+        from hdu_library_booking.resilience import CircuitBreaker
+
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01)
+
+        @cb
+        def op():
+            raise ConnectionError("fail")
+
+        with pytest.raises(ConnectionError):
+            op()
+
+        # Wait for recovery timeout
+        import time
+
+        time.sleep(0.02)
+
+        # Should be half-open now — a success closes it
+        call_count = 0
+
+        @cb
+        def success_op():
+            nonlocal call_count
+            call_count += 1
+            return "ok"
+
+        result = success_op()
+        assert result == "ok"
+        assert cb.state.value == "closed"
+
+
+# ============================================================================
+# 冒烟测试 12: 认证刷新 — Cookie 过期时自动重认证
+# ============================================================================
+class TestSmokeAuthRefresh:
+    """认证刷新冒烟 — 验证 with_reauth 装饰器能处理 Cookie 过期。"""
+
+    def test_reauth_recovers_from_cookie_error(self):
+        """with_reauth 应在 Cookie 过期时自动重认证并重试。"""
+        from hdu_library_booking.exceptions import CookieError
+        from hdu_library_booking.resilience import ReauthStrategy, with_reauth
+
+        strategy = MagicMock(spec=ReauthStrategy)
+        strategy.can_reauth.return_value = True
+        call_count = 0
+
+        @with_reauth(strategy, max_reauth=1)
+        def api_call():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise CookieError("Cookie expired")
+            return "success"
+
+        result = api_call()
+        assert result == "success"
+        assert call_count == 2
+        strategy.reauth.assert_called_once()
+
+    def test_reauth_gives_up_after_max_attempts(self):
+        """with_reauth 应在达到最大重认证次数后放弃。"""
+        from hdu_library_booking.exceptions import CookieError
+        from hdu_library_booking.resilience import ReauthStrategy, with_reauth
+
+        strategy = MagicMock(spec=ReauthStrategy)
+        strategy.can_reauth.return_value = True
+        call_count = 0
+
+        @with_reauth(strategy, max_reauth=1)
+        def api_call():
+            nonlocal call_count
+            call_count += 1
+            raise CookieError("Cookie expired")
+
+        with pytest.raises(CookieError):
+            api_call()
+        assert call_count == 2  # 1 original + 1 reauth attempt
+        assert strategy.reauth.call_count == 1
+
+    def test_is_auth_error_detects_auth_failures(self):
+        """is_auth_error 应正确识别认证相关错误。"""
+        from hdu_library_booking.exceptions import CookieError, LoginError
+        from hdu_library_booking.resilience import is_auth_error
+
+        assert is_auth_error(CookieError("expired")) is True
+        assert is_auth_error(LoginError("bad creds")) is True
+        assert is_auth_error(Exception("登录失败")) is True
+        assert is_auth_error(Exception("unauthorized")) is True
+        # Non-auth errors
+        from hdu_library_booking.exceptions import SeatQueryError
+
+        assert is_auth_error(SeatQueryError("not found")) is False
+        assert is_auth_error(RuntimeError("something else")) is False
+
+
+# ============================================================================
+# 冒烟测试 13: 取消机制 — 验证 CancellationToken 在流程中生效
+# ============================================================================
+class TestSmokeCancellation:
+    """取消机制冒烟 — 验证 CancellationToken 能中断等待流程。"""
+
+    def test_cancellation_token_stops_wait(self):
+        """CancellationToken 应能中断等待中的操作。"""
+        import time
+
+        from hdu_library_booking.resilience import CancellationToken
+
+        token = CancellationToken()
+        cancelled = []
+
+        def wait_for_cancel():
+            token.wait(timeout=10.0)
+            cancelled.append(True)
+
+        t = threading.Thread(target=wait_for_cancel, daemon=True)
+        t.start()
+
+        time.sleep(0.01)
+        token.cancel()
+
+        t.join(timeout=1.0)
+        assert len(cancelled) == 1
+
+    def test_cancellation_callback_fires(self):
+        """取消回调应在 cancel() 时触发。"""
+        from hdu_library_booking.resilience import CancellationToken
+
+        token = CancellationToken()
+        results = []
+
+        token.register_callback(lambda: results.append("cb1"))
+        token.register_callback(lambda: results.append("cb2"))
+        token.cancel()
+
+        assert sorted(results) == ["cb1", "cb2"]
+
+    def test_cancellation_callback_after_cancel(self):
+        """注册已取消的令牌应立即执行回调。"""
+        from hdu_library_booking.resilience import CancellationToken
+
+        token = CancellationToken()
+        token.cancel()
+
+        called = []
+        token.register_callback(lambda: called.append(True))
+        assert len(called) == 1
+
+
+# ============================================================================
+# 冒烟测试 14: 超时控制 — 验证 deadline 上下文管理器
+# ============================================================================
+class TestSmokeTimeout:
+    """超时控制冒烟 — 验证 deadline 能保护长时间操作。"""
+
+    def test_deadline_completes_normally(self):
+        """在 deadline 内完成的操作不应被中断。"""
+        from hdu_library_booking.resilience import deadline
+
+        with deadline(10.0):
+            pass  # immediate completion
+
+    def test_deadline_raises_after_timeout(self):
+        """超过 deadline 应抛出 TimeoutError。"""
+        import time
+
+        from hdu_library_booking.resilience import deadline
+
+        with pytest.raises(TimeoutError, match="deadline"):
+            with deadline(0.01):
+                time.sleep(0.05)
+
+    def test_deadline_check_object(self):
+        """Deadline 对象应能分段检查剩余时间。"""
+        from hdu_library_booking.resilience import Deadline
+
+        dl = Deadline(10.0)
+        assert dl.is_expired is False
+        assert dl.remaining > 0
+        dl.check()  # should not raise
+
+    def test_deadline_check_raises_when_expired(self):
+        """Deadline.check() 超时时应抛出 TimeoutError。"""
+        import time
+
+        from hdu_library_booking.resilience import Deadline
+
+        dl = Deadline(0.01)
+        time.sleep(0.02)
+        with pytest.raises(TimeoutError):
+            dl.check()
+
+
+# ============================================================================
+# 冒烟测试 15: RandomRangeStrategy — 随机座位选择策略
+# ============================================================================
+class TestSmokeRandomStrategy:
+    """RandomRangeStrategy 冒烟 — 验证随机座位选择能正确工作。"""
+
+    def test_random_strategy_selects_seat_in_range(self):
+        """RandomRangeStrategy 应在指定范围内选择座位。"""
+        from hdu_library_booking.models.plan import BookingPlan
+        from hdu_library_booking.strategies.random_range import RandomRangeStrategy
+
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1558,
+            seat_num="296",
+            start_hour=13,
+            duration_hours=1,
+            book_days=1,
+        )
+
+        strategy = RandomRangeStrategy(seat_range=(290, 300))
+
+        # Mock gateway with floors passed as kwarg
+        mock_gateway = MagicMock()
+        mock_seat = {"id": "12345", "title": "296", "status": 0}
+        floors = [
+            {
+                "seatMap": {
+                    "info": {"id": "1558"},
+                    "POIs": [mock_seat],
+                },
+            },
+        ]
+
+        result = strategy.select_seat(mock_gateway, plan, floors=floors)
+        assert result.is_success is True
+
+    def test_random_strategy_describe(self):
+        """RandomRangeStrategy.describe() 应返回描述字符串。"""
+        from hdu_library_booking.models.plan import BookingPlan
+        from hdu_library_booking.strategies.random_range import RandomRangeStrategy
+
+        strategy = RandomRangeStrategy(seat_range=(1, 500))
+        plan = BookingPlan(
+            room_type=1,
+            floor_id=1,
+            seat_num="1",
+            start_hour=1,
+            duration_hours=1,
+        )
+        desc = strategy.describe(plan)
+        assert "随机" in desc or "random" in desc.lower()

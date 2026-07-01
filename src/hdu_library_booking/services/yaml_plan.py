@@ -41,17 +41,27 @@ class YamlPlanRepository(IPlanRepository):
             self._cache = []
             return []
 
+        raw_text = self._file.read_text(encoding="utf-8")
         try:
-            data = yaml.safe_load(self._file.read_text(encoding="utf-8"))
-        except Exception as exc:
+            data = yaml.safe_load(raw_text)
+        except yaml.YAMLError as exc:
+            # YAML 语法错误 → 抛出，让调用者感知数据损坏
             error_tracker.record(
                 ErrorCategory.PERSISTENCE,
                 f"方案文件 YAML 解析失败: {self._file}",
                 exc,
                 module=__name__,
             )
-            self._cache = []
-            return []
+            raise
+        except OSError as exc:
+            # 权限错误等 IO 问题 → 抛出
+            error_tracker.record(
+                ErrorCategory.PERSISTENCE,
+                f"方案文件读取失败: {self._file}",
+                exc,
+                module=__name__,
+            )
+            raise
         if not isinstance(data, list):
             self._cache = []
             return []
