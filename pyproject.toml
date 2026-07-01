@@ -49,7 +49,7 @@ dependencies = [
 ]
 
 [project.scripts]
-hdu-book = "app.ui.cli:main"
+hdu-book = "hdu_library_booking.cli:main"
 hdu-tui = "main:main"
 
 [project.optional-dependencies]
@@ -75,11 +75,11 @@ Issues = "https://github.com/zhuhe/hdu-library-booking/issues"
 Changelog = "https://github.com/zhuhe/hdu-library-booking/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
-include = ["core*", "app*"]
+where = ["src"]
+include = ["hdu_library_booking*"]
 
 [tool.setuptools.package-data]
-core = ["py.typed"]
-app = ["py.typed"]
+hdu_library_booking = ["py.typed"]
 
 # ---------------------------------------------------------------------------
 # uv — 依赖管理
@@ -152,7 +152,7 @@ unfixable = []
 "core/auth.py" = ["S324"]   # hashlib.md5 is used by the API protocol, not for password hashing
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "app"]
+known-first-party = ["hdu_library_booking"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -10,10 +10,10 @@ from pathlib import Path
 
 import yaml
 
-from core.metrics import ErrorCategory, error_tracker
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 from ..models.plan import BookingPlan
-from .base import IPlanRepository
+from .interfaces import IPlanRepository
 
 
 class YamlPlanRepository(IPlanRepository):

@@ -1,12 +1,12 @@
-"""Tests for app.strategies.weekday_rotation — WeekdayRotationStrategy (FR-5.2)。"""
+"""Tests for hdu_library_booking.strategies.weekday — WeekdayRotationStrategy (FR-5.2)。"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from app.models.plan import BookingPlan, Weekday
-from app.strategies.weekday_rotation import WeekdayRotationStrategy
+from hdu_library_booking.models.plan import BookingPlan, Weekday
+from hdu_library_booking.strategies.weekday import WeekdayRotationStrategy
 
 # ---------------------------------------------------------------------------
 # 配置管理测试
@@ -176,7 +176,7 @@ class TestSelectSeatImplicitWeekday:
             weekday=None,
         )
 
-        with patch("app.strategies.weekday_rotation.now_cst") as mock_now:
+        with patch("hdu_library_booking.strategies.weekday.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 7, 15, 10, 0, 0)  # 周三
             result = strategy.select_seat(gateway, plan, floors=floors)
 
@@ -211,7 +211,7 @@ class TestSelectSeatImplicitWeekday:
             weekday=None,
         )
 
-        with patch("app.strategies.weekday_rotation.now_cst") as mock_now:
+        with patch("hdu_library_booking.strategies.weekday.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 7, 15, 10, 0, 0)
             result = strategy.select_seat(gateway, plan, floors=floors)
 
@@ -233,7 +233,7 @@ class TestSelectSeatImplicitWeekday:
             weekday=None,
         )
 
-        with patch("app.strategies.weekday_rotation.now_cst") as mock_now:
+        with patch("hdu_library_booking.strategies.weekday.now_cst") as mock_now:
             mock_now.return_value = datetime(2026, 7, 15, 10, 0, 0)  # 周三
             result = strategy.select_seat(gateway, plan, floors=[])
 

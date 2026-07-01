@@ -1,6 +1,6 @@
-"""Tests for core.constants — URLS, headers, room mappings, defaults."""
+"""Tests for hdu_library_booking.constants — URLS, headers, room mappings, defaults."""
 
-from core import constants as C
+from hdu_library_booking import constants as C
 
 
 class TestURLS:

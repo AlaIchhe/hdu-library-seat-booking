@@ -8,28 +8,29 @@
 import argparse
 import sys
 
-from core import HduLibraryClient, get_settings
-from core.domain.time import build_begin_time, build_execute_datetime
-from core.metrics import ErrorCategory, error_tracker
+from hdu_library_booking.api import HduLibraryClient
+from hdu_library_booking.config import get_settings
+from hdu_library_booking.models.time_utils import build_begin_time, build_execute_datetime
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 from ..models.plan import BookingPlan
-from ..services.auth_service import AuthService
-from ..services.base import ISeatSelectionStrategy
-from ..services.booking_service import (
+from ..services.auth import AuthService
+from ..services.booking import (
     BookingOrchestrator,
     BookingResult,
     default_retry_decider,
 )
-from ..services.notification_service import (
+from ..services.interfaces import ISeatSelectionStrategy
+from ..services.notifications import (
     ConsoleNotification,
     LogFileNotification,
     NotificationAggregator,
     WeChatNotification,
 )
-from ..services.plan_service import PlanService
-from ..strategies.fixed_seat import FixedSeatStrategy
+from ..services.plan import PlanService
+from ..strategies.fixed import FixedSeatStrategy
 from ..strategies.random_range import RandomRangeStrategy
-from ..strategies.weekday_rotation import WeekdayRotationStrategy
+from ..strategies.weekday import WeekdayRotationStrategy
 
 
 class CLI:
@@ -240,7 +241,7 @@ class CLI:
 
         # 从文件加载
         if args.plan_file:
-            from ..services.plan_repository import YamlPlanRepository
+            from ..services.yaml_plan import YamlPlanRepository
 
             repo = YamlPlanRepository(args.plan_file)
             plan_service = PlanService(repo)
@@ -283,8 +284,8 @@ def main() -> None:
 
 def _configure_observability() -> None:
     """初始化结构化日志。"""
-    from core import get_settings
-    from core.observability import configure_from_config
+    from hdu_library_booking.config import get_settings
+    from hdu_library_booking.observability import configure_from_config
 
     settings = get_settings()
     configure_from_config(settings.logging_cfg)

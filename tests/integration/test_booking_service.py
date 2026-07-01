@@ -1,21 +1,21 @@
-"""Tests for app.services.booking_service — RetryDecision, BookingResult, BookingOrchestrator."""
+"""Tests for hdu_library_booking.services.booking — RetryDecision, BookingResult, BookingOrchestrator."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.models.plan import BookingPlan
-from app.services.base import CancellationToken
-from app.services.booking_service import (
+from hdu_library_booking import constants as C
+from hdu_library_booking.exceptions import HduLibraryError
+from hdu_library_booking.models.plan import BookingPlan
+from hdu_library_booking.services.booking import (
     BookingOrchestrator,
     BookingResult,
     RetryDecision,
     default_retry_decider,
 )
-from app.services.notification_service import ConsoleNotification
-from app.strategies.fixed_seat import FixedSeatStrategy
-from core import constants as C
-from core.exceptions import HduLibraryError
+from hdu_library_booking.services.interfaces import CancellationToken
+from hdu_library_booking.services.notifications import ConsoleNotification
+from hdu_library_booking.strategies.fixed import FixedSeatStrategy
 
 
 class TestRetryDecision:
@@ -336,7 +336,7 @@ class TestBookingOrchestrator:
         """定时等待期间取消应抛出 BookingCancelled。"""
         from datetime import datetime, timedelta
 
-        from core.exceptions import BookingCancelled
+        from hdu_library_booking.exceptions import BookingCancelled
 
         cancellation = CancellationToken()
         orchestrator = self.make_orchestrator(

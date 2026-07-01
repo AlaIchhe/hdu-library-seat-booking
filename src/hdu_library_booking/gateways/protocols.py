@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
-from ..types import FloorInfo, RoomDetail, RoomItem, SeatPair
+from hdu_library_booking.types import FloorInfo, RoomDetail, RoomItem, SeatPair
 
 
 class Instrumentation(Protocol):

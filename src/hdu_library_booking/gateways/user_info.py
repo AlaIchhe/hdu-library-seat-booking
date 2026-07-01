@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..types import UserInfo
+from hdu_library_booking.types import UserInfo
 
 
 def find_user_info(data: dict) -> UserInfo | None:

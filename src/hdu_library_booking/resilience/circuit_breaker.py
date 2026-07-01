@@ -13,7 +13,7 @@
 
 用法
 ----
-from core.resilience import CircuitBreaker
+from hdu_library_booking.resilience import CircuitBreaker
 
 cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
 
@@ -41,7 +41,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
-from core.observability import get_logger
+from hdu_library_booking.observability import get_logger
 
 logger = get_logger(__name__)
 

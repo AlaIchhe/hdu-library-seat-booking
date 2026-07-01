@@ -9,7 +9,7 @@
 
 用法
 ----
-from core.observability import metrics_collector as metrics
+from hdu_library_booking.observability import metrics_collector as metrics
 
 # 计数
 metrics.increment("booking_requests_total", labels={"status": "success"})
@@ -33,7 +33,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from core.metrics import ErrorTracker
+from hdu_library_booking.observability._error_tracker import ErrorTracker
 
 
 class MetricsCollector(ErrorTracker):

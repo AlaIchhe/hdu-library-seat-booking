@@ -10,21 +10,21 @@
 HDU 图书馆使用 CAS SSO 统一认证，直接 POST 登录端点会失败。
 浏览器自动化路径则受 CAPTCHA 验证码限制，无法稳定运行。
 
-因此本模块仅作保留参考，主认证流程 core/api.py 和
-app/services/auth_service.py 不调用本模块的任何功能。
+因此本模块仅作保留参考，主认证流程 api/client.py 和
+services/auth.py 不调用本模块的任何功能。
 
 使用方式
 --------
 如需手动使用密码认证，可直接导入::
 
-    from core.password_auth import PasswordAuthClient, sso_browser_login
+    from hdu_library_booking.api.password_auth import PasswordAuthClient, sso_browser_login
 
     # 方式 1：直接 POST（CAS SSO 下无效）
     client = PasswordAuthClient()
     ok = client.login(username="学号", password="密码")
 
     # 方式 2：浏览器自动化（需 Playwright + 无 CAPTCHA）
-    from core import HduLibraryClient
+    from hdu_library_booking.api import HduLibraryClient
     client = HduLibraryClient()
     ok = sso_browser_login(client, username="学号", password="密码")
 """
@@ -34,8 +34,8 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlparse
 
-from . import exceptions as E
-from .metrics import ErrorCategory, error_tracker
+from hdu_library_booking import exceptions as E
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 
 class PasswordAuthClient:

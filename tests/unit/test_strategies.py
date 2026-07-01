@@ -1,11 +1,11 @@
-"""Tests for app.strategies — FixedSeatStrategy, RandomRangeStrategy."""
+"""Tests for hdu_library_booking.strategies — FixedSeatStrategy, RandomRangeStrategy."""
 
 from unittest.mock import MagicMock
 
-from app.models.plan import BookingPlan
-from app.strategies.fixed_seat import FixedSeatStrategy
-from app.strategies.random_range import RandomRangeStrategy
-from core.exceptions import SeatQueryError
+from hdu_library_booking.exceptions import SeatQueryError
+from hdu_library_booking.models.plan import BookingPlan
+from hdu_library_booking.strategies.fixed import FixedSeatStrategy
+from hdu_library_booking.strategies.random_range import RandomRangeStrategy
 
 
 class TestFixedSeatStrategy:

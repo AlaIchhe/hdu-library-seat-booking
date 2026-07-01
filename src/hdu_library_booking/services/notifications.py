@@ -6,10 +6,10 @@
 
 from datetime import datetime
 
-from core.metrics import ErrorCategory, error_tracker
-from core.observability import get_logger
+from hdu_library_booking.observability import get_logger
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
-from .base import INotificationChannel
+from .interfaces import INotificationChannel
 
 logger = get_logger(__name__)
 

@@ -1,10 +1,10 @@
-"""Tests for app.services.plan_service — PlanService CRUD、批量操作、按星期筛选。"""
+"""Tests for hdu_library_booking.services.plan — PlanService CRUD、批量操作、按星期筛选。"""
 
 from __future__ import annotations
 
 import pytest
 
-from app.models.plan import BookingPlan, PlanStatus, Weekday
+from hdu_library_booking.models.plan import BookingPlan, PlanStatus, Weekday
 
 # ---------------------------------------------------------------------------
 # 查询测试

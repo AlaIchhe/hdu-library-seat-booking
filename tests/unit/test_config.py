@@ -1,4 +1,4 @@
-"""Tests for core.config and core.config_parser — YAML config I/O."""
+"""Tests for hdu_library_booking.config — YAML config I/O."""
 
 import os
 import tempfile
@@ -6,8 +6,12 @@ import tempfile
 import pytest
 import yaml
 
-from core.config import create_default_config, load_yaml_config, save_yaml_config
-from core.config_parser import ConfigParser
+from hdu_library_booking.config import (
+    ConfigParser,
+    create_default_config,
+    load_yaml_config,
+    save_yaml_config,
+)
 
 
 class TestLoadYamlConfig:

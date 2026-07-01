@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .. import constants as C
-from .. import exceptions as E
+from hdu_library_booking import constants as C
+from hdu_library_booking import exceptions as E
+
 from .protocols import ISessionAuthenticator
 
 if TYPE_CHECKING:

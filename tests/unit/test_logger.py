@@ -1,8 +1,8 @@
-"""Tests for app.utils.logger — format_countdown 纯函数。"""
+"""Tests for hdu_library_booking.cli.helpers — format_countdown 纯函数。"""
 
 from __future__ import annotations
 
-from app.utils.logger import format_countdown
+from hdu_library_booking.cli.helpers import format_countdown
 
 
 class TestFormatCountdown:

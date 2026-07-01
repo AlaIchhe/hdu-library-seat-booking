@@ -9,7 +9,7 @@
 
 用法
 ----
-from core.resilience import make_retry_decorator
+from hdu_library_booking.resilience import make_retry_decorator
 
 # 使用默认配置
 @make_retry_decorator()

@@ -1,9 +1,9 @@
-"""Tests for core.domain.booking_result — 预约结果谓词函数。"""
+"""Tests for hdu_library_booking.models.booking_result — 预约结果谓词函数。"""
 
 from __future__ import annotations
 
-from core import constants as C
-from core.domain.booking_result import (
+from hdu_library_booking import constants as C
+from hdu_library_booking.models.booking_result import (
     _get_data,
     _get_message,
     booking_failed,

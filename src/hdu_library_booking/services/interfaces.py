@@ -8,8 +8,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from core.infrastructure.protocols import ILibraryGateway
-from core.types import Result, SeatPoi
+from hdu_library_booking.gateways.protocols import ILibraryGateway
+from hdu_library_booking.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
 

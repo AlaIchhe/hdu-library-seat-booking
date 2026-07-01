@@ -7,7 +7,7 @@ HduLibraryClient — 慧图图书馆预约平台统一 API 客户端。
   - 房间类型 → 房间详情 → 座位地图 → 预约提交 完整链路
   - Api-Token 签名（内部调用 auth 模块）
 
-注意：密码认证已移至 core.password_auth 模块，不纳入主流程。
+注意：密码认证已移至 password_auth 模块，不纳入主流程。
 """
 
 import json
@@ -17,14 +17,14 @@ from urllib.parse import unquote
 
 import requests
 
-from . import constants as C
-from . import exceptions as E
-from .auth import generate_api_token
-from .infrastructure.protocols import ILibraryGateway, ISessionAuthenticator
-from .infrastructure.user_info import find_user_info
-from .metrics import ErrorCategory, error_tracker
-from .settings import _flatten_yaml
-from .types import FloorInfo, Json, RoomDetail, RoomItem, SeatPair
+from hdu_library_booking import constants as C
+from hdu_library_booking import exceptions as E
+from hdu_library_booking.auth import generate_api_token
+from hdu_library_booking.config.settings import _flatten_yaml
+from hdu_library_booking.gateways.protocols import ILibraryGateway, ISessionAuthenticator
+from hdu_library_booking.gateways.user_info import find_user_info
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
+from hdu_library_booking.types import FloorInfo, Json, RoomDetail, RoomItem, SeatPair
 
 
 class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
@@ -72,7 +72,7 @@ class HduLibraryClient(ISessionAuthenticator, ILibraryGateway):
         """
         # 向后兼容：从旧 config dict 或新 settings 构建
         if settings is None:
-            from .settings import Settings, _unflatten_keys
+            from hdu_library_booking.config.settings import Settings, _unflatten_keys
 
             if isinstance(config, str | Path):
                 settings = Settings.from_yaml(config)

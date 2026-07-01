@@ -19,8 +19,9 @@ import os
 
 import pytest
 
-from core import HduLibraryClient, HduLibraryError
-from core import constants as C
+from hdu_library_booking import constants as C
+from hdu_library_booking.api import HduLibraryClient
+from hdu_library_booking.exceptions import HduLibraryError
 
 
 # ============================================================================

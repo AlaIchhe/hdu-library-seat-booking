@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from .metrics import ErrorCategory, error_tracker
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 
 def load_yaml_config(path: str | Path) -> dict:

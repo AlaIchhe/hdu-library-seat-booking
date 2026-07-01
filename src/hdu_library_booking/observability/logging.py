@@ -4,7 +4,7 @@
 
 用法
 ----
-from core.observability.logging import configure_logging, get_logger
+from hdu_library_booking.observability.logging import configure_logging, get_logger
 
 # 应用启动时调用一次
 configure_logging(level="INFO", json_format=False)
@@ -22,7 +22,7 @@ from typing import cast
 
 import structlog
 
-from core.settings import LoggingConfig
+from hdu_library_booking.config.settings import LoggingConfig
 
 # ---------------------------------------------------------------------------
 # 公共 API

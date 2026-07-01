@@ -7,11 +7,11 @@
 import random
 from typing import Any
 
-from core.infrastructure.protocols import ILibraryGateway
-from core.types import Result, SeatPoi
+from hdu_library_booking.gateways.protocols import ILibraryGateway
+from hdu_library_booking.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
-from ..services.base import ISeatSelectionStrategy
+from ..services.interfaces import ISeatSelectionStrategy
 
 
 class RandomRangeStrategy(ISeatSelectionStrategy):

@@ -1,8 +1,8 @@
-"""Tests for core.exceptions — exception hierarchy."""
+"""Tests for hdu_library_booking.exceptions — exception hierarchy."""
 
 import pytest
 
-from core.exceptions import (
+from hdu_library_booking.exceptions import (
     BookingCancelled,
     BookingError,
     BookingValidationError,

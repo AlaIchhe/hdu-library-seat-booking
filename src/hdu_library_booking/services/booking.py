@@ -16,24 +16,17 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 
-from core import constants as C
-from core.domain.booking_result import booking_failed, booking_message
-from core.domain.time import build_begin_time
-from core.exceptions import (
-    BookingCancelled,
-    HduLibraryError,
-)
-from core.infrastructure.protocols import ILibraryGateway
-from core.metrics import ErrorCategory, error_tracker
-from core.observability import get_logger, metrics_collector, set_correlation_id
-from core.resilience import (
-    CircuitBreaker,
-    TimeoutConfig,
-    deadline,
-)
+from hdu_library_booking import constants as C
+from hdu_library_booking.exceptions import BookingCancelled, HduLibraryError
+from hdu_library_booking.gateways.protocols import ILibraryGateway
+from hdu_library_booking.models.booking_result import booking_failed, booking_message
+from hdu_library_booking.models.time_utils import build_begin_time
+from hdu_library_booking.observability import get_logger, metrics_collector, set_correlation_id
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
+from hdu_library_booking.resilience import CircuitBreaker, TimeoutConfig, deadline
 
 from ..models.plan import BookingPlan
-from .base import (
+from .interfaces import (
     CancellationToken,
     INotificationChannel,
     ISeatSelectionStrategy,

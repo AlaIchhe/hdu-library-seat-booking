@@ -22,7 +22,7 @@ def main() -> None:
 
     if "--cli" in sys.argv:
         sys.argv.remove("--cli")
-        from app.ui.cli import main as cli_main
+        from hdu_library_booking.cli import main as cli_main
 
         sys.exit(cli_main())  # type: ignore[func-returns-value]
     else:
@@ -31,8 +31,8 @@ def main() -> None:
 
 def _configure_observability() -> None:
     """初始化可观测性（结构化日志）。"""
-    from core import get_settings
-    from core.observability import configure_from_config
+    from hdu_library_booking.config import get_settings
+    from hdu_library_booking.observability import configure_from_config
 
     settings = get_settings()
     configure_from_config(settings.logging_cfg)
@@ -40,13 +40,14 @@ def _configure_observability() -> None:
 
 def _run_terminal() -> None:
     """启动终端交互界面。"""
-    from app.services import (
+    from hdu_library_booking.api import HduLibraryClient
+    from hdu_library_booking.cli.terminal import TerminalUI
+    from hdu_library_booking.config import get_settings
+    from hdu_library_booking.services import (
         AuthService,
         PlanService,
         YamlPlanRepository,
     )
-    from app.ui.terminal import TerminalUI
-    from core import HduLibraryClient, get_settings
 
     # 加载统一配置
     settings = get_settings()

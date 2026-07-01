@@ -1,10 +1,10 @@
-"""Tests for app.services.notification_service — notification channels."""
+"""Tests for hdu_library_booking.services.notifications — notification channels."""
 
 import os
 import tempfile
 
-from app.services.base import INotificationChannel
-from app.services.notification_service import (
+from hdu_library_booking.services.interfaces import INotificationChannel
+from hdu_library_booking.services.notifications import (
     ConsoleNotification,
     LogFileNotification,
     NotificationAggregator,

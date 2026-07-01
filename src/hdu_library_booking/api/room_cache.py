@@ -4,11 +4,11 @@ from collections.abc import Callable
 from time import sleep
 from typing import TYPE_CHECKING, Any
 
-from .domain.seat_lookup import get_seat_lookup_time
-from .metrics import ErrorCategory, error_tracker
+from hdu_library_booking.models.seat_lookup import get_seat_lookup_time
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 if TYPE_CHECKING:
-    from .api import HduLibraryClient
+    from hdu_library_booking.api.client import HduLibraryClient
 
 
 class RoomCache:

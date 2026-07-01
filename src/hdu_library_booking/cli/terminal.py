@@ -8,21 +8,21 @@ import os
 import subprocess
 import sys
 
-from core import HduLibraryClient
-from core.domain.time import build_begin_time, build_execute_datetime
-from core.metrics import ErrorCategory, error_tracker
-from core.room_cache import RoomCache
+from hdu_library_booking.api import HduLibraryClient
+from hdu_library_booking.api.room_cache import RoomCache
+from hdu_library_booking.models.time_utils import build_begin_time, build_execute_datetime
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
+from ..helpers import format_countdown
 from ..models.plan import BookingPlan, PlanStatus
-from ..services.auth_service import AuthService
-from ..services.booking_service import (
+from ..services.auth import AuthService
+from ..services.booking import (
     BookingOrchestrator,
     BookingResult,
 )
-from ..services.notification_service import ConsoleNotification
-from ..services.plan_service import PlanService
-from ..strategies.fixed_seat import FixedSeatStrategy
-from ..utils.logger import format_countdown
+from ..services.notifications import ConsoleNotification
+from ..services.plan import PlanService
+from ..strategies.fixed import FixedSeatStrategy
 
 
 class TerminalUI:
@@ -135,7 +135,7 @@ class TerminalUI:
         elif choice == "p":
             print(
                 "密码认证已停用。请使用 Cookie 认证 [C]。\n"
-                "如需密码认证，请手动调用 core.password_auth 模块。"
+                "如需密码认证，请手动调用 hdu_library_booking.api.password_auth 模块。"
             )
         else:
             print("无效选择，请重新运行并选择 [C]")

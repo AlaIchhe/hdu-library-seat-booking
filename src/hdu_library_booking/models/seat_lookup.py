@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from . import time as _time
+from . import time_utils as _time
 
 
 def get_seat_lookup_time() -> datetime:

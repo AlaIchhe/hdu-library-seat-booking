@@ -1,11 +1,11 @@
-"""Tests for core.room_cache — RoomCache."""
+"""Tests for hdu_library_booking.api.room_cache — RoomCache."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from core.exceptions import SeatQueryError
-from core.room_cache import RoomCache
+from hdu_library_booking.api.room_cache import RoomCache
+from hdu_library_booking.exceptions import SeatQueryError
 
 
 class TestRoomCache:

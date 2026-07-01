@@ -6,13 +6,13 @@
 
 from typing import Any
 
-from core.exceptions import SeatQueryError
-from core.infrastructure.protocols import ILibraryGateway
-from core.metrics import ErrorCategory, error_tracker
-from core.types import Result, SeatPoi
+from hdu_library_booking.exceptions import SeatQueryError
+from hdu_library_booking.gateways.protocols import ILibraryGateway
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
+from hdu_library_booking.types import Result, SeatPoi
 
 from ..models.plan import BookingPlan
-from ..services.base import ISeatSelectionStrategy
+from ..services.interfaces import ISeatSelectionStrategy
 
 
 class FixedSeatStrategy(ISeatSelectionStrategy):
@@ -56,7 +56,7 @@ class FixedSeatStrategy(ISeatSelectionStrategy):
         space = detail["space_category"]
         cat_id = str(space["category_id"])
         con_id = str(space["content_id"])
-        from core.domain.time import build_begin_time
+        from hdu_library_booking.models.time_utils import build_begin_time
 
         begin = build_begin_time(plan.start_hour, plan.book_days)
         return gateway.get_seat_map(cat_id, con_id, begin, plan.duration_hours)

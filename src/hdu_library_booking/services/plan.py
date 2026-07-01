@@ -5,7 +5,7 @@
 """
 
 from ..models.plan import BookingPlan, PlanStatus, Weekday
-from .base import IPlanRepository
+from .interfaces import IPlanRepository
 
 
 class PlanService:

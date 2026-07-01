@@ -1,8 +1,8 @@
-"""Tests for core.auth — generate_api_token signature generation."""
+"""Tests for hdu_library_booking.auth — generate_api_token signature generation."""
 
 import base64
 
-from core.auth import generate_api_token
+from hdu_library_booking.auth import generate_api_token
 
 
 class TestGenerateApiToken:

@@ -5,7 +5,7 @@
 
 用法
 ----
-from core.observability import set_correlation_id, get_correlation_id
+from hdu_library_booking.observability import set_correlation_id, get_correlation_id
 
 # 在流程入口设置
 cid = set_correlation_id()  # 自动生成 UUID

@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
-from .. import constants as C
-from .. import exceptions as E
-from ..auth import generate_api_token
-from ..types import FloorInfo, RoomDetail, RoomItem, SeatPair
+from hdu_library_booking import constants as C
+from hdu_library_booking import exceptions as E
+from hdu_library_booking.auth import generate_api_token
+from hdu_library_booking.types import FloorInfo, RoomDetail, RoomItem, SeatPair
+
 from .protocols import ILibraryGateway
 
 if TYPE_CHECKING:

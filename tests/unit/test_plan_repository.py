@@ -1,10 +1,10 @@
-"""Tests for app.services.plan_repository — YamlPlanRepository."""
+"""Tests for hdu_library_booking.services.yaml_plan — YamlPlanRepository."""
 
 import os
 import tempfile
 
-from app.models.plan import BookingPlan, PlanStatus
-from app.services.plan_repository import YamlPlanRepository
+from hdu_library_booking.models.plan import BookingPlan, PlanStatus
+from hdu_library_booking.services.yaml_plan import YamlPlanRepository
 
 
 class TestYamlPlanRepository:
@@ -145,7 +145,7 @@ class TestYamlPlanRepository:
 
     def test_serialization_roundtrip(self):
         """复杂方案的序列化往返测试。"""
-        from app.models.plan import Weekday
+        from hdu_library_booking.models.plan import Weekday
 
         plan = BookingPlan(
             room_type=2,

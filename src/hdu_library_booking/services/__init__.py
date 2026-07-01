@@ -1,5 +1,13 @@
-from .auth_service import AuthService
-from .base import (
+"""应用服务 — 预约编排、认证、方案管理、YAML 持久化、通知."""
+
+from hdu_library_booking.services.auth import AuthService
+from hdu_library_booking.services.booking import (
+    BookingOrchestrator,
+    BookingResult,
+    RetryDecision,
+    default_retry_decider,
+)
+from hdu_library_booking.services.interfaces import (
     CancellationToken,
     INotificationChannel,
     IPlanRepository,
@@ -7,20 +15,14 @@ from .base import (
     ITaskCancellation,
     IUserInterface,
 )
-from .booking_service import (
-    BookingOrchestrator,
-    BookingResult,
-    RetryDecision,
-    default_retry_decider,
-)
-from .notification_service import (
+from hdu_library_booking.services.notifications import (
     ConsoleNotification,
     LogFileNotification,
     NotificationAggregator,
     WeChatNotification,
 )
-from .plan_repository import YamlPlanRepository
-from .plan_service import PlanService
+from hdu_library_booking.services.plan import PlanService
+from hdu_library_booking.services.yaml_plan import YamlPlanRepository
 
 __all__ = [
     "AuthService",

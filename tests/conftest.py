@@ -7,14 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.models.plan import BookingPlan, PlanStatus, Weekday
-from app.services.booking_service import BookingOrchestrator
-from app.services.notification_service import ConsoleNotification
-from app.services.plan_repository import YamlPlanRepository
-from app.services.plan_service import PlanService
-from app.strategies.fixed_seat import FixedSeatStrategy
-from core import HduLibraryClient
-from core.infrastructure.protocols import ILibraryGateway, NullInstrumentation
+from hdu_library_booking.api import HduLibraryClient
+from hdu_library_booking.gateways.protocols import ILibraryGateway, NullInstrumentation
+from hdu_library_booking.models.plan import BookingPlan, PlanStatus, Weekday
+from hdu_library_booking.services.booking import BookingOrchestrator
+from hdu_library_booking.services.notifications import ConsoleNotification
+from hdu_library_booking.services.plan import PlanService
+from hdu_library_booking.services.yaml_plan import YamlPlanRepository
+from hdu_library_booking.strategies.fixed import FixedSeatStrategy
 
 # ============================================================================
 # 领域对象 fixtures
@@ -209,5 +209,5 @@ def populated_service(plan_service: PlanService) -> PlanService:
 def fixed_time():
     """固定 now_cst() 返回值。"""
     fixed = datetime(2026, 7, 15, 10, 30, 0)
-    with patch("core.domain.time.now_cst", return_value=fixed):
+    with patch("hdu_library_booking.models.time_utils.now_cst", return_value=fixed):
         yield fixed

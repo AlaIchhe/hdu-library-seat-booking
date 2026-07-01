@@ -5,7 +5,7 @@
 
 用法
 ----
-from core.resilience import with_reauth, ReauthStrategy
+from hdu_library_booking.resilience import with_reauth, ReauthStrategy
 
 class MyReauthStrategy(ReauthStrategy):
     def can_reauth(self, error: Exception) -> bool:
@@ -26,8 +26,8 @@ import functools
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from core.exceptions import HduLibraryError
-from core.observability import get_logger
+from hdu_library_booking.exceptions import HduLibraryError
+from hdu_library_booking.observability import get_logger
 
 logger = get_logger(__name__)
 
@@ -106,7 +106,7 @@ def is_auth_error(error: Exception) -> bool:
     bool
         True 表示是认证错误。
     """
-    from core.exceptions import CookieError, LoginError
+    from hdu_library_booking.exceptions import CookieError, LoginError
 
     if isinstance(error, (CookieError, LoginError)):
         return True

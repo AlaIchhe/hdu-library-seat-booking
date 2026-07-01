@@ -1,11 +1,11 @@
 """认证服务 — 编排 Cookie 认证流程。
 
-密码认证已移至 core.password_auth 模块，不纳入主流程。
+密码认证已移至 api.password_auth 模块，不纳入主流程。
 """
 
-from core.exceptions import CookieError
-from core.infrastructure.protocols import ISessionAuthenticator
-from core.metrics import ErrorCategory, error_tracker
+from hdu_library_booking.exceptions import CookieError
+from hdu_library_booking.gateways.protocols import ISessionAuthenticator
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
 
 
 class AuthService:

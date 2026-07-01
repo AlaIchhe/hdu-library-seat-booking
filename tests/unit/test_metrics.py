@@ -1,16 +1,16 @@
-"""Tests for core.metrics — ErrorTracker, ErrorRecord, ErrorCategory."""
+"""Tests for hdu_library_booking.observability._error_tracker — ErrorTracker, ErrorRecord, ErrorCategory."""
 
 import json
 import os
 import tempfile
 import threading
 
-from core.metrics import (
+from hdu_library_booking.observability._error_tracker import (
     ErrorCategory,
     ErrorRecord,
     ErrorTracker,
 )
-from core.metrics import (
+from hdu_library_booking.observability._error_tracker import (
     error_tracker as global_tracker,
 )
 
@@ -234,8 +234,8 @@ class TestGlobalTracker:
     """模块级单例 error_tracker 测试。"""
 
     def test_global_tracker_is_singleton(self):
-        from core.metrics import error_tracker as et1
-        from core.metrics import error_tracker as et2
+        from hdu_library_booking.observability._error_tracker import error_tracker as et1
+        from hdu_library_booking.observability._error_tracker import error_tracker as et2
 
         assert et1 is et2
 

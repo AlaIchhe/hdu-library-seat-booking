@@ -27,7 +27,7 @@
   - Cookie 文件 (tests/cookies.json)
   - 环境变量 HDU_COOKIE
 
-注意：密码认证已移至 core.password_auth 模块，不纳入主流程。
+注意：密码认证已移至 hdu_library_booking.api.password_auth 模块，不纳入主流程。
 """
 
 import os
@@ -44,18 +44,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # 加载项目根目录的 .env（不覆盖已有环境变量）
 dotenv.load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
-from app.models.plan import BookingPlan, PlanStatus, Weekday
-from app.services.auth_service import AuthService
-from app.services.booking_service import (
-    BookingOrchestrator,
-    default_retry_decider,
-)
-from app.services.notification_service import ConsoleNotification
-from app.services.plan_repository import YamlPlanRepository
-from app.services.plan_service import PlanService
-from app.strategies.fixed_seat import FixedSeatStrategy
-from core import HduLibraryClient, RoomCache
-from core.auth import generate_api_token
+from hdu_library_booking.api import HduLibraryClient, RoomCache
+from hdu_library_booking.auth import generate_api_token
+from hdu_library_booking.models.plan import BookingPlan, PlanStatus, Weekday
+from hdu_library_booking.services.auth import AuthService
+from hdu_library_booking.services.booking import BookingOrchestrator, default_retry_decider
+from hdu_library_booking.services.notifications import ConsoleNotification
+from hdu_library_booking.services.plan import PlanService
+from hdu_library_booking.services.yaml_plan import YamlPlanRepository
+from hdu_library_booking.strategies.fixed import FixedSeatStrategy
 
 # ============================================================================
 # 凭据
@@ -157,7 +154,7 @@ class TestSmokeAuthCookieFile:
 
     def test_invalid_cookie_file_raises(self):
         """不存在的 Cookie 文件应抛出 CookieError。"""
-        from core.exceptions import CookieError
+        from hdu_library_booking.exceptions import CookieError
 
         client = HduLibraryClient(timeout=30)
         auth = AuthService(client)
@@ -183,7 +180,7 @@ class TestSmokeAuthCookieString:
 
     def test_empty_cookie_string_raises(self):
         """空 Cookie 字符串应抛出 CookieError。"""
-        from core.exceptions import CookieError
+        from hdu_library_booking.exceptions import CookieError
 
         client = HduLibraryClient(timeout=30)
         auth = AuthService(client)
@@ -283,14 +280,14 @@ class TestSmokeSeatQuery:
 
     def test_find_seat_invalid_floor(self, authed_client, first_room_floors):
         """查询不存在的楼层应抛出 SeatQueryError。"""
-        from core.exceptions import SeatQueryError
+        from hdu_library_booking.exceptions import SeatQueryError
 
         with pytest.raises(SeatQueryError, match="找不到楼层"):
             authed_client.find_seat_in_floors(first_room_floors, "99999", "001")
 
     def test_find_seat_invalid_seat(self, authed_client, first_room_floors):
         """查询不存在的座位应抛出 SeatQueryError。"""
-        from core.exceptions import SeatQueryError
+        from hdu_library_booking.exceptions import SeatQueryError
 
         first_floor = first_room_floors[0]
         floor_id = str(first_floor["seatMap"]["info"]["id"])

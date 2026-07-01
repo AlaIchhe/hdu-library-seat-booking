@@ -1,17 +1,18 @@
-"""配置解析器（向后兼容 shim，核心功能由 core.settings.Settings 替代）。"""
+"""配置解析器（向后兼容 shim，核心功能由 hdu_library_booking.config.settings.Settings 替代）。"""
 
 from __future__ import annotations
 
 import os
 
-from .config import load_yaml_config, save_yaml_config
-from .metrics import ErrorCategory, error_tracker
+from hdu_library_booking.observability._error_tracker import ErrorCategory, error_tracker
+
+from .yaml import load_yaml_config, save_yaml_config
 
 
 class ConfigParser:
     """配置解析器 — 向后兼容。
 
-    新代码请使用 ``core.settings.Settings``。
+    新代码请使用 ``hdu_library_booking.config.settings.Settings``。
     """
 
     def __init__(self, config_file: str, template: str | None = None) -> None:

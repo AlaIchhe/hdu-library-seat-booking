@@ -9,7 +9,7 @@
 
 用法
 ----
-from core.resilience import CancellationToken
+from hdu_library_booking.resilience import CancellationToken
 
 token = CancellationToken()
 

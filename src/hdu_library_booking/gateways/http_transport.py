@@ -20,13 +20,13 @@ from typing import TYPE_CHECKING
 import requests
 from requests.adapters import HTTPAdapter
 
-from .. import constants as C
-from .. import exceptions as E
-from ..resilience import TimeoutConfig, is_retryable_status
+from hdu_library_booking import constants as C
+from hdu_library_booking import exceptions as E
+from hdu_library_booking.resilience import TimeoutConfig, is_retryable_status
 
 if TYPE_CHECKING:
-    from ..settings import Settings
-    from .protocols import Instrumentation
+    from hdu_library_booking.config.settings import Settings
+    from hdu_library_booking.gateways.protocols import Instrumentation
 
 
 def _create_session(
@@ -100,7 +100,10 @@ class HttpTransport:
     ):
         self._settings = settings
         self._instrumentation = instrumentation
-        s = settings or __import__("core.settings", fromlist=["Settings"]).Settings()
+        s = (
+            settings
+            or __import__("hdu_library_booking.config.settings", fromlist=["Settings"]).Settings()
+        )
 
         # 超时配置
         self._timeout_config = timeout_config or TimeoutConfig(

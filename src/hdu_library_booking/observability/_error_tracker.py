@@ -6,9 +6,10 @@
 
 用法
 ----
-from core.metrics import error_tracker
+from hdu_library_booking.observability._error_tracker import error_tracker
 
 # 在捕获异常处插桩
+
 try:
     ...
 except HduLibraryError as exc:

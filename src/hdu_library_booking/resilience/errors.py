@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from core.exceptions import (
+from hdu_library_booking.exceptions import (
     BookingCancelled,
     BookingValidationError,
     CookieError,

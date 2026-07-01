@@ -1,4 +1,4 @@
-"""Tests for core.api — HduLibraryClient HTTP client (with mocking)."""
+"""Tests for hdu_library_booking.api.client — HduLibraryClient HTTP client (with mocking)."""
 
 import json
 import os
@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from core.api import HduLibraryClient
-from core.exceptions import (
+from hdu_library_booking.api.client import HduLibraryClient
+from hdu_library_booking.exceptions import (
     CookieError,
     HduLibraryError,
     RoomQueryError,

@@ -51,7 +51,7 @@ uv lock
 # 运行命令（自动激活虚拟环境）
 uv run python main.py
 uv run pytest tests/unit/
-uv run ruff check core/ app/
+uv run ruff check src/
 
 # 指定 Python 版本
 uv sync --python 3.12
@@ -115,7 +115,7 @@ python main.py --cli --report-json errors.json
 ### 程序中获取追踪数据
 
 ```python
-from core.metrics import error_tracker, ErrorCategory
+from hdu_library_booking.observability._error_tracker import error_tracker, ErrorCategory
 
 # 查看摘要
 print(error_tracker.summary())

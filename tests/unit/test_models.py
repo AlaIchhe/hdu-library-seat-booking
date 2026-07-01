@@ -1,6 +1,6 @@
-"""Tests for app.models.plan — BookingPlan, Weekday, PlanStatus."""
+"""Tests for hdu_library_booking.models.plan — BookingPlan, Weekday, PlanStatus."""
 
-from app.models.plan import (
+from hdu_library_booking.models.plan import (
     BookingPlan,
     PlanStatus,
     Weekday,

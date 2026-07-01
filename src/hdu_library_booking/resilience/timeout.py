@@ -7,7 +7,7 @@
 
 用法
 ----
-from core.resilience import TimeoutConfig, deadline
+from hdu_library_booking.resilience import TimeoutConfig, deadline
 
 # 配置超时
 timeout = TimeoutConfig(connect_timeout=5.0, read_timeout=10.0)

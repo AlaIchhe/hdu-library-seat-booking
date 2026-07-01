@@ -1,4 +1,4 @@
-"""Tests for core.settings — 配置加载、键映射、工厂方法。"""
+"""Tests for hdu_library_booking.config.settings — 配置加载、键映射、工厂方法。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from core.settings import (
+from hdu_library_booking.config.settings import (
     BookingConfig,
     HTTPConfig,
     Settings,
